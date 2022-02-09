@@ -53,7 +53,7 @@ type Blockchain struct {
 	pendingBlock *pendingBlock
 
 	// used to execute transactions and scripts
-	vm    *fvm.VirtualMachine
+	vm    fvm.VirtualMachine
 	vmCtx fvm.Context
 
 	transactionValidator *access.TransactionValidator
@@ -354,7 +354,7 @@ func NewBlockchain(opts ...Option) (*Blockchain, error) {
 	return b, nil
 }
 
-func configureFVM(conf config, blocks *blocks) (*fvm.VirtualMachine, fvm.Context, error) {
+func configureFVM(conf config, blocks *blocks) (fvm.VirtualMachine, fvm.Context, error) {
 	rt := runtime.NewInterpreterRuntime()
 
 	vm := fvm.NewVirtualMachine(rt)
@@ -376,7 +376,7 @@ func configureFVM(conf config, blocks *blocks) (*fvm.VirtualMachine, fvm.Context
 func configureLedger(
 	conf config,
 	store storage.Store,
-	vm *fvm.VirtualMachine,
+	vm fvm.VirtualMachine,
 	ctx fvm.Context,
 ) (*flowgo.Block, *delta.View, error) {
 	latestBlock, err := store.LatestBlock()
@@ -397,7 +397,7 @@ func configureLedger(
 func configureNewLedger(
 	conf config,
 	store storage.Store,
-	vm *fvm.VirtualMachine,
+	vm fvm.VirtualMachine,
 	ctx fvm.Context,
 ) (*flowgo.Block, *delta.View, error) {
 	genesisLedgerView := store.LedgerViewByHeight(0)
@@ -443,7 +443,7 @@ func configureExistingLedger(
 }
 
 func bootstrapLedger(
-	vm *fvm.VirtualMachine,
+	vm fvm.VirtualMachine,
 	ctx fvm.Context,
 	ledger state.View,
 	conf config,
