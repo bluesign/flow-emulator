@@ -117,9 +117,10 @@ type Config struct {
 	// Host listen on for the emulator servers (REST/GRPC/Admin)
 	Host string
 	//Chain to emulation
-	ChainID flowgo.ChainID
-	//Redis URL for redis storage backend
+	ChainID  flowgo.ChainID
 	RedisURL string
+	//Sqlite URL for sqlite storage backend
+	SqliteURL string
 }
 
 type listener interface {
@@ -270,6 +271,9 @@ func (s *EmulatorServer) Stop() {
 func configureStorage(logger *logrus.Logger, conf *Config) (storage Storage, err error) {
 	if conf.RedisURL != "" {
 		return NewRedisStorage(conf.RedisURL)
+	}
+	if conf.SqliteURL != "" {
+		return NewSqliteStorage(conf.SqliteURL)
 	}
 
 	return NewBadgerStorage(logger, conf.DBPath, conf.DBGCInterval, conf.DBGCDiscardRatio, conf.Snapshot, conf.Persist)

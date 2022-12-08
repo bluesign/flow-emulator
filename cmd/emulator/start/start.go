@@ -70,6 +70,7 @@ type Config struct {
 	Host                      string        `default:"127.0.0.1" flag:"host" info:"host to listen on for emulator GRPC/REST/Admin servers"`
 	ChainID                   string        `default:"emulator" flag:"chain-id" info:"chain to emulate for address generation. Valid values are: 'emulator', 'testnet', 'mainnet'"`
 	RedisURL                  string        `default:"" flag:"redis-url" info:"redis-server URL for persisting redis storage backend ( redis://[[username:]password@]host[:port][/database] ) "`
+	SqliteURL                 string        `default:"" flag:"sqlite-url" info:"sqlite db URL for persisting sqlite storage backend "`
 }
 
 const EnvPrefix = "FLOW"
@@ -189,6 +190,7 @@ func Cmd(getServiceKey serviceKeyFunc) *cobra.Command {
 				Host:                      conf.Host,
 				ChainID:                   flowChainID,
 				RedisURL:                  conf.RedisURL,
+				SqliteURL:                 conf.SqliteURL,
 			}
 
 			emu := server.NewEmulatorServer(logger, serverConf)

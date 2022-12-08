@@ -28,6 +28,7 @@ import (
 	"github.com/onflow/flow-emulator/storage"
 	"github.com/onflow/flow-emulator/storage/badger"
 	"github.com/onflow/flow-emulator/storage/redis"
+	"github.com/onflow/flow-emulator/storage/sqlite"
 )
 
 type Storage interface {
@@ -54,6 +55,28 @@ func (s *RedisStorage) Start() error {
 func (s *RedisStorage) Stop() {}
 
 func (s *RedisStorage) Store() storage.Store {
+	return s.store
+}
+
+type SqliteStorage struct {
+	store *sqlite.Store
+}
+
+func NewSqliteStorage(url string) (*SqliteStorage, error) {
+	db, err := sqlite.New(url)
+	if err != nil {
+		return nil, err
+	}
+	return &SqliteStorage{store: db}, nil
+}
+
+func (s *SqliteStorage) Start() error {
+	return nil
+}
+
+func (s *SqliteStorage) Stop() {}
+
+func (s *SqliteStorage) Store() storage.Store {
 	return s.store
 }
 
