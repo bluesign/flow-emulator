@@ -21,6 +21,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	fvmerrors "github.com/onflow/flow-go/fvm/errors"
 
@@ -59,6 +60,8 @@ func NewEmulatorAPIServer(server *EmulatorServer, backend *backend.Backend, stor
 	router.HandleFunc("/emulator/snapshots", r.SnapshotCreate).Methods("POST")
 	router.HandleFunc("/emulator/snapshots", r.SnapshotList).Methods("GET")
 	router.HandleFunc("/emulator/snapshots/{name}", r.SnapshotJump).Methods("PUT")
+
+	router.HandleFunc("/emulator/rollback", r.Rollback).Methods("POST")
 
 	router.HandleFunc("/emulator/storages/{address}", r.Storage)
 
@@ -176,6 +179,32 @@ func (m EmulatorAPIServer) SnapshotJump(w http.ResponseWriter, r *http.Request) 
 
 	m.reloadBlockchainFromSnapshot(name, (*m.storage).Store(), w)
 
+}
+func (m EmulatorAPIServer) Rollback(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if r.FormValue("height") == "" {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	height, err := strconv.ParseUint(r.FormValue("height"), 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	rollbackProvider, isRollbackProvider := (*m.storage).Store().(storage.RollbackProvider)
+	if !isRollbackProvider {
+		m.server.logger.Error("Rollback is not available with current storage backend")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = rollbackProvider.RollbackToBlockHeight(height)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	m.reloadBlockchainFromSnapshot("rollback", (*m.storage).Store(), w)
 }
 
 func (m EmulatorAPIServer) SnapshotCreate(w http.ResponseWriter, r *http.Request) {
