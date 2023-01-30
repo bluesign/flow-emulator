@@ -21,9 +21,9 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	_ "embed"
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,30 +34,44 @@ import (
 )
 
 var _ storage.SnapshotProvider = &Store{}
-var _ storage.Store = &Store{}
-
-//go:embed createTables.sql
-var createTablesSql string
+var _ storage.RollbackProvider = &Store{}
 
 // Store implements the Store interface
 type Store struct {
 	storage.DefaultStore
-	db            *sql.DB
-	url           string
-	mu            sync.RWMutex
-	snapshotNames []string
+	db  *sql.DB
+	url string
+	mu  sync.RWMutex
 }
 
-func (s *Store) Snapshots() (snapshots []string, err error) {
+func (s *Store) RollbackToBlockHeight(height uint64) error {
+	tx, err := s.db.BeginTx(context.Background(), &sql.TxOptions{})
+	if err != nil {
+		return err
+	}
+
+	for _, table := range []string{"blocks", "blockIndex", "events", "transactions", "collections", "transactionResults"} {
+		_, err = tx.Exec(fmt.Sprintf(`DELETE from %s where height>%d`, table, height))
+		if err != nil {
+			return err
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return err
+	}
+
+	return s.DefaultStore.SetBlockHeight(height)
+}
+
+func (s *Store) ListSnapshots() (snapshots []string, err error) {
 	if !s.SupportSnapshotsWithCurrentConfig() {
-		return []string{}, fmt.Errorf("Snapshot is not supported with current configuration")
+		return []string{}, fmt.Errorf("Snapshot is not supported with memory db")
 	}
 
-	if s.url == ":memory:" {
-		return s.snapshotNames, nil
-	}
-
-	files, err := os.ReadDir(s.url)
+	path := filepath.Dir(s.url)
+	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		return snapshots, err
 	}
@@ -78,42 +92,21 @@ func (s *Store) Snapshots() (snapshots []string, err error) {
 
 func (s *Store) JumpToSnapshot(snapshotName string, createIfNotExists bool) error {
 	if !s.SupportSnapshotsWithCurrentConfig() {
-		return fmt.Errorf("Snapshot is not supported with current configuration")
+		return fmt.Errorf("Snapshot is not supported with memory db")
+	}
+	path := filepath.Dir(s.url)
+	dbfile := fmt.Sprintf("%s/snapshot_%s", path, snapshotName)
+
+	_, err := os.Stat(dbfile)
+	if !createIfNotExists && os.IsNotExist(err) {
+		return fmt.Errorf("Snapshot %s does not exist", snapshotName)
 	}
 
-	var dbfile string
-	if s.url == ":memory:" {
-		dbfile = fmt.Sprintf("file:%s?mode=memory&cache=shared", snapshotName)
-		db, err := sql.Open("sqlite", dbfile)
-		if err != nil {
-			return err
-		}
-
-		result := db.QueryRow("SELECT count(name) FROM sqlite_schema WHERE type='table'")
-		var count int
-		err = result.Scan(&count)
-		if err != nil {
-			return err
-		}
-
-		if !createIfNotExists && count == 0 {
-			return fmt.Errorf("Snapshot %s does not exist", snapshotName)
-		}
-	} else {
-		dbfile = filepath.Join(s.url, fmt.Sprintf("snapshot_%s", snapshotName))
-		_, err := os.Stat(dbfile)
-		if !createIfNotExists && os.IsNotExist(err) {
-			return fmt.Errorf("Snapshot %s does not exist", snapshotName)
-		}
-	}
-
-	if createIfNotExists {
+	if os.IsNotExist(err) {
 		_, err := s.db.Exec(fmt.Sprintf("VACUUM main INTO '%s'", dbfile))
 		if err != nil {
 			return err
 		}
-		s.snapshotNames = append(s.snapshotNames, snapshotName)
-		return nil
 	}
 
 	db, err := sql.Open("sqlite", dbfile)
@@ -121,6 +114,12 @@ func (s *Store) JumpToSnapshot(snapshotName string, createIfNotExists bool) erro
 		return err
 	}
 
+	err = initdb(db)
+	if err != nil {
+		return err
+	}
+
+	//switch
 	s.db.Close()
 	s.db = db
 
@@ -128,22 +127,22 @@ func (s *Store) JumpToSnapshot(snapshotName string, createIfNotExists bool) erro
 }
 
 func (s *Store) SupportSnapshotsWithCurrentConfig() bool {
-	if s.url == ":memory:" {
-		return true
-	}
-	fileInfo, err := os.Stat(s.url)
-	if err != nil {
-		return false
-	}
-	return fileInfo.IsDir()
+	return s.url != ":memory:"
 }
 
-func initDb(db *sql.DB) error {
+func initdb(db *sql.DB) error {
 	tx, err := db.BeginTx(context.Background(), &sql.TxOptions{})
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(createTablesSql)
+	_, err = tx.Exec(`CREATE TABLE IF NOT EXISTS global(key TEXT, value TEXT, version INTEGER, UNIQUE(key,version));
+CREATE TABLE IF NOT EXISTS ledger(key TEXT, value TEXT, version INTEGER, height INTEGER, UNIQUE(key,version));
+CREATE TABLE IF NOT EXISTS blocks(key TEXT, value TEXT, version INTEGER, height INTEGER,  UNIQUE(key,version));
+CREATE TABLE IF NOT EXISTS blockIndex(key TEXT, value TEXT, version INTEGER, height INTEGER,  UNIQUE(key,version));
+CREATE TABLE IF NOT EXISTS events(key TEXT, value TEXT, version INTEGER, height INTEGER,  UNIQUE(key,version));
+CREATE TABLE IF NOT EXISTS transactions(key TEXT, value TEXT, version INTEGER,  height INTEGER,  UNIQUE(key,version));
+CREATE TABLE IF NOT EXISTS collections(key TEXT, value TEXT, version INTEGER, height INTEGER,  UNIQUE(key,version));
+CREATE TABLE IF NOT EXISTS transactionResults(key TEXT, value TEXT, version INTEGER, height INTEGER, UNIQUE(key,version));`)
 	if err != nil {
 		return err
 	}
@@ -151,30 +150,19 @@ func initDb(db *sql.DB) error {
 }
 
 // New returns a new in-memory Store implementation.
-func New(url string) (store *Store, err error) {
+func New(url string) (*Store, error) {
 
-	dbUrl := url
-	if dbUrl != ":memory:" {
-		urlInfo, err := os.Stat(url)
-		if err == nil && urlInfo.IsDir() {
-			dbUrl = filepath.Join(urlInfo.Name(), "emulator.sqlite")
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	db, err := sql.Open("sqlite", dbUrl)
+	db, err := sql.Open("sqlite", url)
 	if err != nil {
 		return nil, err
 	}
 
-	err = initDb(db)
+	err = initdb(db)
 	if err != nil {
 		return nil, err
 	}
 
-	store = &Store{
+	store := &Store{
 		db:  db,
 		url: url,
 	}
@@ -197,17 +185,16 @@ func (s *Store) SetBytes(ctx context.Context, store string, key []byte, value []
 func (s *Store) SetBytesWithVersion(ctx context.Context, store string, key []byte, value []byte, version uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, err := s.db.Exec(
-		fmt.Sprintf(
-			"INSERT INTO %s (key, version, value) VALUES (?, ?, ?) ON CONFLICT(key, version) DO UPDATE SET value=excluded.value",
-			store,
-		),
-		hex.EncodeToString(key),
-		version,
-		hex.EncodeToString(value),
-	)
-	if err != nil {
-		return err
+	if store == "global" {
+		_, err := s.db.Exec(fmt.Sprintf("INSERT INTO %s (key, version, value) VALUES (?, ?, ?) ON CONFLICT(key, version) DO UPDATE SET value=excluded.value", store), hex.EncodeToString(key), version, hex.EncodeToString(value))
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err := s.db.Exec(fmt.Sprintf("INSERT INTO %s (key, version, value, height) VALUES (?, ?, ?,?) ON CONFLICT(key, version) DO UPDATE SET value=excluded.value", store), hex.EncodeToString(key), version, hex.EncodeToString(value), s.CurrentHeight)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -215,14 +202,7 @@ func (s *Store) SetBytesWithVersion(ctx context.Context, store string, key []byt
 func (s *Store) GetBytesAtVersion(ctx context.Context, store string, key []byte, version uint64) ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rows, err := s.db.Query(
-		fmt.Sprintf(
-			"SELECT value from %s  WHERE key = ? and version <= ? order by version desc LIMIT 1",
-			store,
-		),
-		hex.EncodeToString(key),
-		version,
-	)
+	rows, err := s.db.Query(fmt.Sprintf("SELECT value from %s  WHERE key = ? and version <= ? order by version desc LIMIT 1", store), hex.EncodeToString(key), version)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +225,8 @@ func (s *Store) GetBytesAtVersion(ctx context.Context, store string, key []byte,
 	return nil, storage.ErrNotFound
 }
 func (s *Store) Close() error {
-	s.db.Close()
 	return nil
+	//s.db.Close()
 }
+
+var _ storage.Store = &Store{}

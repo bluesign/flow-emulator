@@ -102,6 +102,10 @@ type SnapshotProvider interface {
 	SupportSnapshotsWithCurrentConfig() bool
 }
 
+type RollbackProvider interface {
+	RollbackToBlockHeight(height uint64) error
+}
+
 type KeyGenerator interface {
 	Storage(key string) string
 	LatestBlock() []byte
@@ -153,6 +157,12 @@ type DefaultStore struct {
 	KeyGenerator
 	DataSetter
 	DataGetter
+	CurrentHeight uint64
+}
+
+func (s *DefaultStore) SetBlockHeight(height uint64) error {
+	return s.DataSetter.SetBytes(context.Background(), s.KeyGenerator.Storage(globalStoreName), s.KeyGenerator.LatestBlock(), mustEncodeUint64(height))
+
 }
 
 func (s *DefaultStore) LatestBlockHeight(ctx context.Context) (latestBlockHeight uint64, err error) {
@@ -178,6 +188,7 @@ func (s *DefaultStore) LatestBlock(ctx context.Context) (block flowgo.Block, err
 }
 
 func (s *DefaultStore) StoreBlock(ctx context.Context, block *flowgo.Block) error {
+	s.CurrentHeight = block.Header.Height
 
 	encBlock, err := encodeBlock(*block)
 	if err != nil {
