@@ -1,10 +1,11 @@
-package server
+package emulator
 
 import (
 	"fmt"
 
-	emulator "github.com/onflow/flow-emulator"
+	sdkconvert "github.com/onflow/flow-emulator/convert/sdk"
 	flowsdk "github.com/onflow/flow-go-sdk"
+
 	"github.com/onflow/flow-go-sdk/templates"
 	"github.com/onflow/flow-go/fvm"
 	flowgo "github.com/onflow/flow-go/model/flow"
@@ -14,14 +15,14 @@ import (
 )
 
 type DeployDescription struct {
-	name        string
-	address     flowsdk.Address
-	description string
+	Name        string
+	Address     flowgo.Address
+	Description string
 }
 
-func deployContracts(b *emulator.Blockchain) ([]DeployDescription, error) {
+func DeployContracts(b *Blockchain) ([]DeployDescription, error) {
 	ftAddress := flowsdk.HexToAddress(fvm.FungibleTokenAddress(b.GetChain()).Hex())
-	serviceAddress := b.ServiceKey().Address
+	serviceAddress := flowsdk.HexToAddress(b.ServiceKey().Address.Hex())
 
 	toDeploy := []struct {
 		name        string
@@ -67,7 +68,7 @@ func deployContracts(b *emulator.Blockchain) ([]DeployDescription, error) {
 		}
 	}
 
-	serviceAcct, err := b.GetAccount(serviceAddress)
+	serviceAcct, err := b.GetAccount(b.ServiceKey().Address)
 	if err != nil {
 		return nil, err
 	}
@@ -81,9 +82,9 @@ func deployContracts(b *emulator.Blockchain) ([]DeployDescription, error) {
 		deployDescriptions = append(
 			deployDescriptions,
 			DeployDescription{
-				name:        c.name,
-				address:     serviceAddress,
-				description: c.description,
+				Name:        c.name,
+				Address:     b.ServiceKey().Address,
+				Description: c.description,
 			},
 		)
 	}
@@ -91,16 +92,16 @@ func deployContracts(b *emulator.Blockchain) ([]DeployDescription, error) {
 	return deployDescriptions, nil
 }
 
-func deployContract(b *emulator.Blockchain, name string, contract []byte) error {
+func deployContract(b *Blockchain, name string, contract []byte) error {
 
 	serviceKey := b.ServiceKey()
-	serviceAddress := serviceKey.Address
+	serviceAddress := flowsdk.HexToAddress(b.ServiceKey().Address.Hex())
 
 	if serviceKey.PrivateKey == nil {
 		return fmt.Errorf("not able to deploy contracts without set private key")
 	}
 
-	latestBlock, err := b.GetLatestBlock()
+	latestBlock, _, err := b.GetLatestBlock()
 	if err != nil {
 		return err
 	}
@@ -125,7 +126,7 @@ func deployContract(b *emulator.Blockchain, name string, contract []byte) error 
 		return err
 	}
 
-	err = b.AddTransaction(*tx)
+	err = b.AddTransaction(*sdkconvert.SDKTransactionToFlow(*tx))
 	if err != nil {
 		return err
 	}

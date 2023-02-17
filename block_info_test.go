@@ -20,6 +20,7 @@ package emulator_test
 
 import (
 	"fmt"
+	convert "github.com/onflow/flow-emulator/convert/sdk"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
@@ -36,6 +37,7 @@ func TestBlockInfo(t *testing.T) {
 
 	b, err := emulator.NewBlockchain()
 	require.NoError(t, err)
+	serviceAddress := convert.FlowAddressToSDK(b.ServiceKey().Address)
 
 	block1, err := b.CommitBlock()
 	require.NoError(t, err)
@@ -57,16 +59,17 @@ func TestBlockInfo(t *testing.T) {
 				}
 			`)).
 			SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-			SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-			SetPayer(b.ServiceKey().Address)
+			SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+			SetPayer(serviceAddress)
 
 		signer, err := b.ServiceKey().Signer()
 		require.NoError(t, err)
 
-		err = tx.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+		err = tx.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 		require.NoError(t, err)
 
-		err = b.AddTransaction(*tx)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx)
+		err = b.AddTransaction(flowTransaction)
 		require.NoError(t, err)
 
 		result, err := b.ExecuteNextTransaction()

@@ -19,7 +19,6 @@ package emulator
 
 import (
 	"github.com/onflow/cadence"
-	sdk "github.com/onflow/flow-go-sdk"
 	"github.com/onflow/flow-go/model/flow"
 )
 
@@ -32,7 +31,7 @@ func (s StorageItem) Get(key string) cadence.Value {
 // NewAccountStorage creates an instance of the storage that holds the values for each storage path.
 func NewAccountStorage(
 	account *flow.Account,
-	address sdk.Address,
+	address flow.Address,
 	private StorageItem,
 	public StorageItem,
 	storage StorageItem,
@@ -47,7 +46,7 @@ func NewAccountStorage(
 }
 
 type AccountStorage struct {
-	Address sdk.Address
+	Address flow.Address
 	Private StorageItem
 	Public  StorageItem
 	Storage StorageItem

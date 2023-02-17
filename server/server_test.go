@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -21,10 +20,10 @@ func TestExecuteScript(t *testing.T) {
 	      return "Hello"
       }
     `
-	result, err := server.backend.ExecuteScriptAtLatestBlock(context.Background(), []byte(code), nil)
+	result, err := server.blockchain.ExecuteScript([]byte(code), nil)
 	require.NoError(t, err)
 
-	require.JSONEq(t, `{"type":"String","value":"Hello"}`, string(result))
+	require.JSONEq(t, `{"type":"String","value":"Hello"}`, result.Value.String())
 
 }
 
@@ -41,7 +40,7 @@ func TestGetStorage(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
-			_, err := server.backend.GetAccountStorage(address)
+			_, err := server.blockchain.GetAccountStorage(address)
 			errchan <- err
 			wg.Done()
 		}()
@@ -81,7 +80,7 @@ func TestExecuteScriptImportingContracts(t *testing.T) {
 		serviceAccount,
 	)
 
-	_, err := server.backend.ExecuteScriptAtLatestBlock(context.Background(), []byte(code), nil)
+	_, err := server.blockchain.ExecuteScript([]byte(code), nil)
 	require.NoError(t, err)
 
 }

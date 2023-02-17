@@ -20,6 +20,8 @@ package emulator_test
 
 import (
 	"fmt"
+	convert "github.com/onflow/flow-emulator/convert/sdk"
+	flowgo "github.com/onflow/flow-go/model/flow"
 	"testing"
 
 	"github.com/onflow/cadence"
@@ -117,13 +119,13 @@ func assertTransactionSucceeded(t *testing.T, result *types.TransactionResult) {
 	}
 }
 
-func lastCreatedAccount(b *emulator.Blockchain, result *types.TransactionResult) (*flowsdk.Account, error) {
+func lastCreatedAccount(b *emulator.Blockchain, result *types.TransactionResult) (*flowgo.Account, error) {
 	address, err := lastCreatedAccountAddress(result)
 	if err != nil {
 		return nil, err
 	}
 
-	return b.GetAccount(address)
+	return b.GetAccount(convert.SDKAddressToFlow(address))
 }
 
 func lastCreatedAccountAddress(result *types.TransactionResult) (flowsdk.Address, error) {

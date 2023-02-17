@@ -22,7 +22,6 @@ import (
 	sdk "github.com/onflow/flow-go-sdk"
 
 	emulator "github.com/onflow/flow-emulator"
-	"github.com/onflow/flow-emulator/server/backend"
 )
 
 type ScopeIdentifier uint
@@ -35,7 +34,7 @@ const (
 
 type session struct {
 	logger                *zerolog.Logger
-	backend               *backend.Backend
+	emulator              emulator.Emulator
 	readWriter            *bufio.ReadWriter
 	variables             map[int]any
 	variableHandleCounter int
@@ -203,7 +202,7 @@ func (s *session) handleVariablesRequest(request *dap.VariablesRequest) {
 	case ScopeIdentifierStorage:
 		index := 1
 		for {
-			account, err := s.backend.GetEmulator().GetAccountByIndex(uint(index))
+			account, err := s.emulator.GetAccountByIndex(uint(index))
 			if err != nil { //end of accounts
 				break
 			}
@@ -491,7 +490,7 @@ func (s *session) handleAttachRequest(request *dap.AttachRequest) {
 
 func (s *session) handleDisconnectRequest(request *dap.DisconnectRequest) {
 	s.debugger.Continue()
-	s.backend.GetEmulator().EndDebugging()
+	s.emulator.EndDebugging()
 	s.configurationDone = false
 	s.launchRequested = false
 	s.send(&dap.DisconnectResponse{
@@ -714,9 +713,8 @@ func (s *session) newStackFrame(positioned ast.HasPosition, location common.Loca
 
 func (s *session) pathCode(path string) string {
 	basename := strings.TrimSuffix(path, ".cdc")
-	backendEmulator := s.backend.GetEmulator()
 
-	runningScriptID, runningCode := backendEmulator.(*emulator.Blockchain).CurrentScript()
+	runningScriptID, runningCode := s.emulator.(*emulator.Blockchain).CurrentScript()
 	if basename == runningScriptID {
 		return runningCode
 	}
@@ -731,10 +729,8 @@ func (s *session) pathCode(path string) string {
 	}
 
 	if addressLocation, ok := location.(common.AddressLocation); ok {
-		var account *sdk.Account
-		address := sdk.Address(addressLocation.Address)
 		// nolint:staticcheck
-		account, err = backendEmulator.GetAccountUnsafe(address)
+		account, err := s.emulator.GetAccountUnsafe(flowgo.Address(addressLocation.Address))
 		if err != nil {
 			return ""
 		}
@@ -756,7 +752,7 @@ func (s *session) step() {
 }
 
 func (s *session) run() context.CancelFunc {
-	s.backend.GetEmulator().SetDebugger(s.debugger)
+	s.emulator.SetDebugger(s.debugger)
 	if s.stopOnEntry {
 		s.debugger.RequestPause()
 	}
@@ -799,7 +795,7 @@ func (s *session) run() context.CancelFunc {
 			// TODO: add support for arguments
 			// TODO: add support for transactions. requires automine
 
-			result, err := s.backend.ExecuteScriptAtLatestBlock(context.Background(), []byte(s.code), nil)
+			result, err := s.emulator.ExecuteScript([]byte(s.code), nil)
 			cancel()
 
 			var outputBody dap.OutputEventBody
@@ -811,7 +807,7 @@ func (s *session) run() context.CancelFunc {
 			} else {
 				outputBody = dap.OutputEventBody{
 					Category: "stdout",
-					Output:   string(result),
+					Output:   result.Value.String(),
 				}
 			}
 
@@ -836,7 +832,7 @@ func (s *session) run() context.CancelFunc {
 				Event: newDAPEvent("terminated"),
 			})
 
-			s.backend.GetEmulator().EndDebugging()
+			s.emulator.EndDebugging()
 
 		}()
 

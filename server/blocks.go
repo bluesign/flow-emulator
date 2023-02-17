@@ -19,19 +19,18 @@
 package server
 
 import (
+	emulator "github.com/onflow/flow-emulator"
 	"time"
-
-	"github.com/onflow/flow-emulator/server/backend"
 )
 
 type BlocksTicker struct {
-	backend *backend.Backend
+	backend emulator.Emulator
 	ticker  *time.Ticker
 	done    chan bool
 }
 
 func NewBlocksTicker(
-	backend *backend.Backend,
+	backend emulator.Emulator,
 	blockTime time.Duration,
 ) *BlocksTicker {
 	return &BlocksTicker{

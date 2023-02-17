@@ -18,6 +18,7 @@
 package emulator
 
 import (
+	sdkconvert "github.com/onflow/flow-emulator/convert/sdk"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
@@ -61,7 +62,7 @@ func TestStorageTransaction(t *testing.T) {
 	err = tx1.SignEnvelope(accountAddress, 0, signer)
 	assert.NoError(t, err)
 
-	err = b.AddTransaction(*tx1)
+	err = b.AddTransaction(*sdkconvert.SDKTransactionToFlow(*tx1))
 	assert.NoError(t, err)
 
 	result, err := b.ExecuteNextTransaction()
@@ -71,7 +72,7 @@ func TestStorageTransaction(t *testing.T) {
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
 
-	accountStorage, err := b.GetAccountStorage(accountAddress)
+	accountStorage, err := b.GetAccountStorage(sdkconvert.SDKAddressToFlow(accountAddress))
 	assert.NoError(t, err)
 
 	require.NotNil(t, accountStorage.Public.Get("publicTest"))

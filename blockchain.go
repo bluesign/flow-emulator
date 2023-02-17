@@ -14,6 +14,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/logrusorgru/aurora"
+	"github.com/onflow/flow-go/fvm/derived"
+	"github.com/onflow/flow-go/fvm/tracing"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,12 +37,10 @@ import (
 	"github.com/onflow/flow-go/engine/execution/state/delta"
 	"github.com/onflow/flow-go/fvm"
 	fvmcrypto "github.com/onflow/flow-go/fvm/crypto"
-	"github.com/onflow/flow-go/fvm/derived"
 	"github.com/onflow/flow-go/fvm/environment"
 	fvmerrors "github.com/onflow/flow-go/fvm/errors"
 	reusableRuntime "github.com/onflow/flow-go/fvm/runtime"
 	"github.com/onflow/flow-go/fvm/state"
-	"github.com/onflow/flow-go/fvm/tracing"
 	flowgo "github.com/onflow/flow-go/model/flow"
 	"github.com/rs/zerolog"
 
@@ -46,6 +50,8 @@ import (
 	"github.com/onflow/flow-emulator/storage/sqlite"
 	"github.com/onflow/flow-emulator/types"
 )
+
+var _ Emulator = &Blockchain{}
 
 // Blockchain emulates the functionality of the Flow blockchain.
 type Blockchain struct {
@@ -65,6 +71,8 @@ type Blockchain struct {
 	transactionValidator *access.TransactionValidator
 
 	serviceKey ServiceKey
+	autoMine   bool
+	logger     *zerolog.Logger
 
 	debugger               *interpreter.Debugger
 	activeDebuggingSession bool
@@ -74,7 +82,7 @@ type Blockchain struct {
 
 type ServiceKey struct {
 	Index          int
-	Address        sdk.Address
+	Address        flowgo.Address
 	SequenceNumber uint64
 	PrivateKey     sdkcrypto.PrivateKey
 	PublicKey      sdkcrypto.PublicKey
@@ -149,9 +157,10 @@ type config struct {
 	ContractRemovalEnabled       bool
 	MinimumStorageReservation    cadence.UFix64
 	StorageMBPerFLOW             cadence.UFix64
-	Logger                       zerolog.Logger
+	Logger                       *zerolog.Logger
 	TransactionValidationEnabled bool
 	ChainID                      flowgo.ChainID
+	AutoMine                     bool
 }
 
 func (conf config) GetStore() storage.Store {
@@ -176,7 +185,7 @@ func (conf config) GetChainID() flowgo.ChainID {
 func (conf config) GetServiceKey() ServiceKey {
 	// set up service key
 	serviceKey := conf.ServiceKey
-	serviceKey.Address = sdk.Address(conf.GetChainID().Chain().ServiceAddress())
+	serviceKey.Address = conf.GetChainID().Chain().ServiceAddress()
 	serviceKey.Weight = sdk.AccountKeyWeightThreshold
 
 	return serviceKey
@@ -204,9 +213,10 @@ var defaultConfig = func() config {
 		StorageMBPerFLOW:             fvm.DefaultStorageMBPerFLOW,
 		TransactionExpiry:            0, // TODO: replace with sensible default
 		StorageLimitEnabled:          true,
-		Logger:                       zerolog.Nop(),
+		Logger:                       nil,
 		TransactionValidationEnabled: true,
 		ChainID:                      flowgo.Emulator,
+		AutoMine:                     false,
 	}
 }()
 
@@ -215,7 +225,7 @@ type Option func(*config)
 
 // WithLogger sets the logger
 func WithLogger(
-	logger zerolog.Logger,
+	logger *zerolog.Logger,
 ) Option {
 	return func(c *config) {
 		c.Logger = logger
@@ -389,6 +399,7 @@ func NewBlockchain(opts ...Option) (*Blockchain, error) {
 		serviceKey:             conf.GetServiceKey(),
 		debugger:               nil,
 		activeDebuggingSession: false,
+		logger:                 conf.Logger,
 	}
 
 	var err error
@@ -415,7 +426,6 @@ func configureFVM(blockchain *Blockchain, conf config, blocks *blocks) (*fvm.Vir
 	vm := fvm.NewVirtualMachine()
 
 	fvmOptions := []fvm.Option{
-		fvm.WithLogger(conf.Logger),
 		fvm.WithChain(conf.GetChainID().Chain()),
 		fvm.WithBlocks(blocks),
 		fvm.WithContractDeploymentRestricted(false),
@@ -427,6 +437,12 @@ func configureFVM(blockchain *Blockchain, conf config, blocks *blocks) (*fvm.Vir
 		fvm.WithReusableCadenceRuntimePool(
 			reusableRuntime.NewReusableCadenceRuntimePool(1, runtime.Config{Debugger: blockchain.debugger}),
 		),
+	}
+
+	if conf.Logger != nil {
+		fvmLogger := conf.Logger.With().Str("module", "fvm").Logger().Level(zerolog.InfoLevel)
+		fvmOptions = append(
+			fvmOptions, fvm.WithLogger(fvmLogger))
 	}
 
 	if !conf.TransactionValidationEnabled {
@@ -619,7 +635,7 @@ func (b *Blockchain) CurrentScript() (string, string) {
 
 // ServiceKey returns the service private key for this blockchain.
 func (b *Blockchain) ServiceKey() ServiceKey {
-	serviceAccount, err := b.getAccount(sdkconvert.SDKAddressToFlow(b.serviceKey.Address))
+	serviceAccount, err := b.GetAccount(b.serviceKey.Address)
 	if err != nil {
 		return b.serviceKey
 	}
@@ -648,38 +664,46 @@ func (b *Blockchain) PendingBlockTimestamp() time.Time {
 	return b.pendingBlock.Block().Header.Timestamp
 }
 
+func (b *Blockchain) EnableAutoMine() {
+	b.autoMine = true
+}
+
+func (b *Blockchain) DisableAutoMine() {
+	b.autoMine = false
+}
+
+func (b *Blockchain) Ping() error {
+	b.logger.Debug().Msg("🎁  Ping called")
+	return nil
+}
+
+func (b *Blockchain) GetChain() flowgo.Chain {
+	return b.vmCtx.Chain
+}
+
+func (b *Blockchain) GetNetworkParameters() access.NetworkParameters {
+	b.logger.Debug().
+		Str("chainID", b.GetChain().ChainID().String()).
+		Msg("🎁  GetNetworkParameters called")
+
+	return access.NetworkParameters{
+		ChainID: b.GetChain().ChainID(),
+	}
+}
+
 // GetLatestBlock gets the latest sealed block.
-func (b *Blockchain) GetLatestBlock() (*flowgo.Block, error) {
+func (b *Blockchain) GetLatestBlock() (*flowgo.Block, flowgo.BlockStatus, error) {
 	block, err := b.storage.LatestBlock(context.Background())
 	if err != nil {
-		return nil, &StorageError{err}
+		return nil, flowgo.BlockStatusUnknown, &StorageError{err}
 	}
 
-	return &block, nil
-}
+	b.logger.Debug().Fields(map[string]any{
+		"blockHeight": block.Header.Height,
+		"blockID":     block.ID().String(),
+	}).Msg("🎁  GetLatestBlock called")
 
-// GetBlockByID gets a block by ID.
-func (b *Blockchain) GetBlockByID(id sdk.Identifier) (*flowgo.Block, error) {
-	block, err := b.storage.BlockByID(context.Background(), sdkconvert.SDKIdentifierToFlow(id))
-	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			return nil, &BlockNotFoundByIDError{ID: id}
-		}
-
-		return nil, &StorageError{err}
-	}
-
-	return block, nil
-}
-
-// GetBlockByHeight gets a block by height.
-func (b *Blockchain) GetBlockByHeight(height uint64) (*flowgo.Block, error) {
-	block, err := b.getBlockByHeight(height)
-	if err != nil {
-		return nil, err
-	}
-
-	return block, nil
+	return &block, flowgo.BlockStatusSealed, nil
 }
 
 func (b *Blockchain) getBlockByHeight(height uint64) (*flowgo.Block, error) {
@@ -694,15 +718,44 @@ func (b *Blockchain) getBlockByHeight(height uint64) (*flowgo.Block, error) {
 	return block, nil
 }
 
-func (b *Blockchain) GetChain() flowgo.Chain {
-	return b.vmCtx.Chain
+// GetBlockByHeight gets a block by height.
+func (b *Blockchain) GetBlockByHeight(height uint64) (*flowgo.Block, flowgo.BlockStatus, error) {
+	block, err := b.getBlockByHeight(height)
+	if err != nil {
+		return nil, flowgo.BlockStatusUnknown, err
+	}
+
+	b.logger.Debug().Fields(map[string]any{
+		"blockHeight": block.Header.Height,
+		"blockID":     block.ID().String(),
+	}).Msg("🎁  GetBlockByHeight called")
+
+	return block, flowgo.BlockStatusSealed, nil
 }
 
-func (b *Blockchain) GetCollection(colID sdk.Identifier) (*sdk.Collection, error) {
+// GetBlockByID gets a block by ID.
+func (b *Blockchain) GetBlockByID(id flowgo.Identifier) (*flowgo.Block, flowgo.BlockStatus, error) {
+	block, err := b.storage.BlockByID(context.Background(), id)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, flowgo.BlockStatusUnknown, &BlockNotFoundByIDError{ID: id}
+		}
+		return nil, flowgo.BlockStatusUnknown, &StorageError{err}
+	}
+
+	b.logger.Debug().Fields(map[string]any{
+		"blockHeight": block.Header.Height,
+		"blockID":     block.ID().String(),
+	}).Msg("🎁  GetBlockByID called")
+
+	return block, flowgo.BlockStatusSealed, nil
+}
+
+func (b *Blockchain) GetCollectionByID(colID flowgo.Identifier) (*flowgo.LightCollection, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	col, err := b.storage.CollectionByID(context.Background(), sdkconvert.SDKIdentifierToFlow(colID))
+	col, err := b.storage.CollectionByID(context.Background(), colID)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return nil, &CollectionNotFoundError{ID: colID}
@@ -710,24 +763,22 @@ func (b *Blockchain) GetCollection(colID sdk.Identifier) (*sdk.Collection, error
 		return nil, &StorageError{err}
 	}
 
-	sdkCol := sdkconvert.FlowLightCollectionToSDK(col)
+	b.logger.Debug().Str("colID", colID.String()).
+		Msg("📚  GetCollectionByID called")
 
-	return &sdkCol, nil
+	return &col, nil
 }
 
 // GetTransaction gets an existing transaction by ID.
 //
 // The function first looks in the pending block, then the current blockchain state.
-func (b *Blockchain) GetTransaction(id sdk.Identifier) (*sdk.Transaction, error) {
+func (b *Blockchain) GetTransaction(txID flowgo.Identifier) (*flowgo.TransactionBody, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	txID := sdkconvert.SDKIdentifierToFlow(id)
-
 	pendingTx := b.pendingBlock.GetTransaction(txID)
 	if pendingTx != nil {
-		pendingSDKTx := sdkconvert.FlowTransactionToSDK(*pendingTx)
-		return &pendingSDKTx, nil
+		return pendingTx, nil
 	}
 
 	tx, err := b.storage.TransactionByID(context.Background(), txID)
@@ -738,147 +789,70 @@ func (b *Blockchain) GetTransaction(id sdk.Identifier) (*sdk.Transaction, error)
 		return nil, &StorageError{err}
 	}
 
-	sdkTx := sdkconvert.FlowTransactionToSDK(tx)
-	return &sdkTx, nil
+	b.logger.Debug().
+		Str("txID", txID.String()).
+		Msg("💵  GetTransaction called")
+
+	return &tx, nil
 }
 
-func (b *Blockchain) GetTransactionResult(ID sdk.Identifier) (*sdk.TransactionResult, error) {
+func (b *Blockchain) GetTransactionResult(txID flowgo.Identifier) (*access.TransactionResult, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	txID := sdkconvert.SDKIdentifierToFlow(ID)
-
 	if b.pendingBlock.ContainsTransaction(txID) {
-		return &sdk.TransactionResult{
-			Status: sdk.TransactionStatusPending,
+		return &access.TransactionResult{
+			Status: flowgo.TransactionStatusPending,
 		}, nil
 	}
 
 	storedResult, err := b.storage.TransactionResultByID(context.Background(), txID)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
-			return &sdk.TransactionResult{
-				Status: sdk.TransactionStatusUnknown,
+			return &access.TransactionResult{
+				Status: flowgo.TransactionStatusUnknown,
 			}, nil
 		}
 		return nil, &StorageError{err}
 	}
 
-	var errResult error
-
-	if storedResult.ErrorCode != 0 {
-		errResult = &ExecutionError{
-			Code:    storedResult.ErrorCode,
-			Message: storedResult.ErrorMessage,
-		}
+	//TODO: bluesign: something missing here (blockHeight, blockID..)
+	result := access.TransactionResult{
+		Status:        flowgo.TransactionStatusSealed,
+		StatusCode:    uint(storedResult.ErrorCode),
+		ErrorMessage:  storedResult.ErrorMessage,
+		Events:        storedResult.Events,
+		TransactionID: txID,
+		BlockHeight:   0,
 	}
 
-	sdkEvents, err := sdkconvert.FlowEventsToSDK(storedResult.Events)
-	if err != nil {
-		return nil, err
-	}
-
-	result := sdk.TransactionResult{
-		Status: sdk.TransactionStatusSealed,
-		Error:  errResult,
-		Events: sdkEvents,
-	}
+	b.logger.Debug().
+		Str("txID", txID.String()).
+		Msg("📝  GetTransactionResult called")
 
 	return &result, nil
 }
 
 // GetAccount returns the account for the given address.
-func (b *Blockchain) GetAccountByIndex(index uint) (*sdk.Account, error) {
+func (b *Blockchain) GetAccount(address flowgo.Address) (*flowgo.Account, error) {
 
-	generator := flow.NewAddressGenerator(sdk.ChainID(b.vmCtx.Chain.ChainID()))
+	b.logger.Debug().
+		Str("address", address.String()).
+		Msg("👤  GetAccount called")
 
-	generator.SetIndex(index)
-
-	flowAddress := sdkconvert.SDKAddressToFlow(generator.Address())
-
-	account, err := b.getAccount(flowAddress)
+	latestBlock, _, err := b.GetLatestBlock()
 	if err != nil {
 		return nil, err
 	}
-
-	sdkAccount, err := sdkconvert.FlowAccountToSDK(*account)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sdkAccount, nil
+	return b.GetAccountAtBlockHeight(address, latestBlock.Header.Height)
 }
 
-// Deprecated: Needed for the debugger right now, do NOT use for other purposes.
-// TODO: refactor
-func (b *Blockchain) GetAccountUnsafe(address sdk.Address) (*sdk.Account, error) {
-
-	flowAddress := sdkconvert.SDKAddressToFlow(address)
-
-	account, err := b.getAccount(flowAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	sdkAccount, err := sdkconvert.FlowAccountToSDK(*account)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sdkAccount, nil
-}
-
-// GetAccount returns the account for the given address.
-func (b *Blockchain) GetAccount(address sdk.Address) (*sdk.Account, error) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	flowAddress := sdkconvert.SDKAddressToFlow(address)
-
-	account, err := b.getAccount(flowAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	sdkAccount, err := sdkconvert.FlowAccountToSDK(*account)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sdkAccount, nil
-}
-
-// getAccount returns the account for the given address.
-func (b *Blockchain) getAccount(address flowgo.Address) (*flowgo.Account, error) {
-	latestBlock, err := b.GetLatestBlock()
-	if err != nil {
-		return nil, err
-	}
-	return b.getAccountAtBlock(address, latestBlock.Header.Height)
-}
-
-// GetAccountAtBlock returns the account for the given address at specified block height.
-func (b *Blockchain) GetAccountAtBlock(address sdk.Address, blockHeight uint64) (*sdk.Account, error) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	flowAddress := sdkconvert.SDKAddressToFlow(address)
-
-	account, err := b.getAccountAtBlock(flowAddress, blockHeight)
-	if err != nil {
-		return nil, err
-	}
-
-	sdkAccount, err := sdkconvert.FlowAccountToSDK(*account)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sdkAccount, nil
-}
-
-// GetAccountAtBlock returns the account for the given address at specified block height.
-func (b *Blockchain) getAccountAtBlock(address flowgo.Address, blockHeight uint64) (*flowgo.Account, error) {
+// GetAccountAtBlockHeight returns the account for the given address at specified block height.
+func (b *Blockchain) GetAccountAtBlockHeight(address flowgo.Address, blockHeight uint64) (*flowgo.Account, error) {
+	b.logger.Debug().
+		Str("address", address.String()).
+		Uint64("height", blockHeight).
+		Msg("👤  GetAccountAtBlockHeight called")
 
 	account, err := b.vm.GetAccount(
 		b.vmCtx,
@@ -893,33 +867,384 @@ func (b *Blockchain) getAccountAtBlock(address flowgo.Address, blockHeight uint6
 	return account, nil
 }
 
-// GetEventsByHeight returns the events in the block at the given height, optionally filtered by type.
-func (b *Blockchain) GetEventsByHeight(blockHeight uint64, eventType string) ([]sdk.Event, error) {
-	flowEvents, err := b.storage.EventsByHeight(context.Background(), blockHeight, eventType)
+// GetAccountByIndex  returns the account for the given index.
+func (b *Blockchain) GetAccountByIndex(index uint) (*flowgo.Account, error) {
+
+	generator := flow.NewAddressGenerator(sdk.ChainID(b.vmCtx.Chain.ChainID()))
+
+	generator.SetIndex(index)
+
+	account, err := b.GetAccountUnsafe(sdkconvert.SDKAddressToFlow(generator.Address()))
 	if err != nil {
 		return nil, err
 	}
 
-	sdkEvents, err := sdkconvert.FlowEventsToSDK(flowEvents)
+	return account, nil
+}
+
+// Deprecated: Needed for the debugger right now, do NOT use for other purposes.
+// TODO: refactor
+func (b *Blockchain) GetAccountUnsafe(address flowgo.Address) (*flowgo.Account, error) {
+	latestBlock, _, err := b.GetLatestBlock()
 	if err != nil {
-		return nil, fmt.Errorf("could not convert events: %w", err)
+		return nil, err
+	}
+	return b.GetAccountAtBlockHeight(address, latestBlock.Header.Height)
+}
+
+// GetEventsByHeight returns the events in the block at the given height, optionally filtered by type.
+func (b *Blockchain) GetEventsByHeight(blockHeight uint64, eventType string) ([]flowgo.Event, error) {
+	flowEvents, err := b.storage.EventsByHeight(context.Background(), blockHeight, eventType)
+	if err != nil {
+		return nil, err
+	}
+	return flowEvents, err
+}
+
+func validateEventType(eventType string) error {
+	if len(strings.TrimSpace(eventType)) == 0 {
+		return fmt.Errorf("invalid query: eventType must not be empty")
+	}
+	return nil
+}
+
+func (b *Blockchain) GetEventsForBlockIDs(
+	eventType string,
+	blockIDs []flowgo.Identifier,
+) ([]flowgo.BlockEvents, error) {
+
+	err := validateEventType(eventType)
+	if err != nil {
+		return nil, err
 	}
 
-	return sdkEvents, err
+	results := make([]flowgo.BlockEvents, 0)
+	eventCount := 0
+	for _, blockID := range blockIDs {
+		block, _, err := b.GetBlockByID(blockID)
+		if err != nil {
+			return nil, err
+		}
+
+		events, err := b.GetEventsByHeight(block.Header.Height, eventType)
+		if err != nil {
+			return nil, err
+		}
+
+		result := flowgo.BlockEvents{
+			BlockID:        block.Header.ID(),
+			BlockHeight:    block.Header.Height,
+			BlockTimestamp: block.Header.Timestamp,
+			Events:         events,
+		}
+
+		results = append(results, result)
+		eventCount += len(events)
+	}
+	b.logger.Debug().Fields(map[string]any{
+		"eventType":  eventType,
+		"eventCount": eventCount,
+	}).Msg("🎁  GetEventsForBlockIDs called")
+	return results, nil
+
+}
+
+// GetEventsForHeightRange returns events matching a query.
+func (b *Blockchain) GetEventsForHeightRange(
+	eventType string,
+	startHeight, endHeight uint64,
+) ([]flowgo.BlockEvents, error) {
+
+	err := validateEventType(eventType)
+	if err != nil {
+		return nil, err
+	}
+
+	latestBlock, _, err := b.GetLatestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	// if end height is not set, use the latest block height
+	// if end height is higher than latest, use latest
+	if endHeight == 0 || endHeight > latestBlock.Header.Height {
+		endHeight = latestBlock.Header.Height
+	}
+
+	// check for invalid queries
+	if startHeight > endHeight {
+		return nil, NewInvalidArgumentError("startHeight > endHeight")
+	}
+
+	results := make([]flowgo.BlockEvents, 0)
+	eventCount := 0
+
+	for height := startHeight; height <= endHeight; height++ {
+		block, _, err := b.GetBlockByHeight(height)
+		if err != nil {
+			return nil, err
+		}
+
+		events, err := b.GetEventsByHeight(height, eventType)
+		if err != nil {
+			return nil, err
+		}
+
+		result := flowgo.BlockEvents{
+			BlockID:        block.ID(),
+			BlockHeight:    block.Header.Height,
+			BlockTimestamp: block.Header.Timestamp,
+			Events:         events,
+		}
+
+		results = append(results, result)
+		eventCount += len(events)
+	}
+
+	b.logger.Debug().Fields(map[string]any{
+		"eventType":   eventType,
+		"startHeight": startHeight,
+		"endHeight":   endHeight,
+		"eventCount":  eventCount,
+	}).Msg("🎁  GetEventsForHeightRange called")
+
+	return results, nil
+}
+
+func (b *Blockchain) executeScriptAtBlock(script []byte, arguments [][]byte, requestedBlock *flowgo.Block) (*types.ScriptResult, error) {
+
+	requestedLedgerView := b.storage.LedgerViewByHeight(context.Background(), requestedBlock.Header.Height)
+
+	header := requestedBlock.Header
+
+	blockContext := fvm.NewContextFromParent(
+		b.vmCtx,
+		fvm.WithBlockHeader(header),
+	)
+
+	scriptProc := fvm.Script(script).WithArguments(arguments...)
+
+	err := b.vm.Run(blockContext, scriptProc, requestedLedgerView)
+	if err != nil {
+		return nil, err
+	}
+
+	hasher := hash.NewSHA3_256()
+	scriptID := sdk.HashToID(hasher.ComputeHash(script))
+
+	events, err := sdkconvert.FlowEventsToSDK(scriptProc.Events)
+	if err != nil {
+		return nil, err
+	}
+
+	var scriptError error = nil
+	var convertedValue cadence.Value = nil
+
+	if scriptProc.Err == nil {
+		convertedValue = scriptProc.Value
+	} else {
+		scriptError = convert.VMErrorToEmulator(scriptProc.Err)
+	}
+
+	return &types.ScriptResult{
+		ScriptID:        scriptID,
+		Value:           convertedValue,
+		Error:           scriptError,
+		Logs:            scriptProc.Logs,
+		Events:          events,
+		ComputationUsed: scriptProc.GasUsed,
+	}, nil
+
+}
+func (b *Blockchain) printTransactionResult(result *types.TransactionResult) {
+	if result.Succeeded() {
+		b.logger.Info().
+			Str("txID", result.TransactionID.String()).
+			Uint64("computationUsed", result.ComputationUsed).
+			Msg("⭐  Transaction executed")
+	} else {
+		b.logger.Warn().
+			Str("txID", result.TransactionID.String()).
+			Uint64("computationUsed", result.ComputationUsed).
+			Msg("❗  Transaction reverted")
+	}
+
+	for _, log := range result.Logs {
+		b.logger.Info().Msgf(
+			"%s %s",
+			logPrefix("LOG", result.TransactionID, aurora.BlueFg),
+			log,
+		)
+	}
+
+	for _, event := range result.Events {
+		b.logger.Debug().Msgf(
+			"%s %s",
+			logPrefix("EVT", result.TransactionID, aurora.GreenFg),
+			event,
+		)
+	}
+
+	if !result.Succeeded() {
+		b.logger.Warn().Msgf(
+			"%s %s",
+			logPrefix("ERR", result.TransactionID, aurora.RedFg),
+			result.Error.Error(),
+		)
+
+		if result.Debug != nil {
+			b.logger.Debug().Fields(result.Debug.Meta).Msg(
+				fmt.Sprintf("%s %s", "❗  Transaction Signature Error", result.Debug.Message),
+			)
+		}
+	}
+}
+
+func (b *Blockchain) printScriptResult(result *types.ScriptResult) {
+	if result.Succeeded() {
+		b.logger.Info().
+			Str("scriptID", result.ScriptID.String()).
+			Uint64("computationUsed", result.ComputationUsed).
+			Msg("⭐  Script executed")
+	} else {
+		b.logger.Warn().
+			Str("scriptID", result.ScriptID.String()).
+			Uint64("computationUsed", result.ComputationUsed).
+			Msg("❗  Script reverted")
+	}
+
+	for _, log := range result.Logs {
+		b.logger.Debug().Msgf(
+			"%s %s",
+			logPrefix("LOG", result.ScriptID, aurora.BlueFg),
+			log,
+		)
+	}
+
+	if !result.Succeeded() {
+		b.logger.Warn().Msgf(
+			"%s %s",
+			logPrefix("ERR", result.ScriptID, aurora.RedFg),
+			result.Error.Error(),
+		)
+	}
+}
+
+func logPrefix(prefix string, id sdk.Identifier, color aurora.Color) string {
+	prefix = aurora.Colorize(prefix, color|aurora.BoldFm).String()
+	shortID := fmt.Sprintf("[%s]", id.String()[:6])
+	shortID = aurora.Colorize(shortID, aurora.FaintFm).String()
+	return fmt.Sprintf("%s %s", prefix, shortID)
+}
+
+// ExecuteScript executes a read-only script against the world state and returns the result
+func (b *Blockchain) ExecuteScript(script []byte, arguments [][]byte) (*types.ScriptResult, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	b.logger.Debug().Msgf("👤  ExecuteScriptAtLatestBlock called")
+
+	latestBlock, _, err := b.GetLatestBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := b.executeScriptAtBlock(script, arguments, latestBlock)
+	if err != nil {
+		return nil, err
+	}
+
+	b.printScriptResult(result)
+	return result, err
+}
+
+func (b *Blockchain) ExecuteScriptAtBlockID(script []byte, arguments [][]byte, blockID flowgo.Identifier) (*types.ScriptResult, error) {
+	b.logger.Debug().
+		Str("blockID", blockID.String()).
+		Msg("👤  ExecuteScriptAtBlockID called")
+
+	requestedBlock, _, err := b.GetBlockByID(blockID)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := b.executeScriptAtBlock(script, arguments, requestedBlock)
+	if err != nil {
+		return nil, err
+	}
+
+	b.printScriptResult(result)
+	return result, err
+}
+
+func (b *Blockchain) ExecuteScriptAtBlockHeight(script []byte, arguments [][]byte, blockHeight uint64) (*types.ScriptResult, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	b.logger.Debug().
+		Uint64("blockHeight", blockHeight).
+		Msg("👤  ExecuteScriptAtBlockHeight called")
+
+	requestedBlock, err := b.getBlockByHeight(blockHeight)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := b.executeScriptAtBlock(script, arguments, requestedBlock)
+	if err != nil {
+		return nil, err
+	}
+
+	b.printScriptResult(result)
+	return result, err
+}
+
+// SendTransaction submits a transaction to the network.
+func (b *Blockchain) SendTransaction(flowTx *flowgo.TransactionBody) error {
+	err := b.AddTransaction(*flowTx)
+	if err != nil {
+		switch t := err.(type) {
+		case *DuplicateTransactionError:
+			return NewInvalidArgumentError(err.Error())
+		case *types.FlowError:
+			switch t.FlowError.Code() {
+			case fvmerrors.ErrCodeAccountAuthorizationError,
+				fvmerrors.ErrCodeInvalidEnvelopeSignatureError,
+				fvmerrors.ErrCodeInvalidPayloadSignatureError,
+				fvmerrors.ErrCodeInvalidProposalSignatureError,
+				fvmerrors.ErrCodeAccountPublicKeyNotFoundError,
+				fvmerrors.ErrCodeInvalidProposalSeqNumberError,
+				fvmerrors.ErrCodeInvalidAddressError:
+				return NewInvalidArgumentError(err.Error())
+
+			default:
+				if fvmerrors.IsAccountNotFoundError(err) {
+					return NewInvalidArgumentError(err.Error())
+				}
+				return NewInternalError(err.Error())
+
+			}
+		default:
+			return NewInternalError(err.Error())
+		}
+	}
+
+	b.logger.Debug().
+		Str("txID", flowTx.ID().String()).
+		Msg(`✉️   Transaction submitted`)
+
+	if b.autoMine {
+		_, _, err := b.executeAndCommitBlock()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // AddTransaction validates a transaction and adds it to the current pending block.
-func (b *Blockchain) AddTransaction(tx sdk.Transaction) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	return b.addTransaction(tx)
-}
-
-// AddTransaction validates a transaction and adds it to the current pending block.
-func (b *Blockchain) addTransaction(sdkTx sdk.Transaction) error {
-
-	tx := sdkconvert.SDKTransactionToFlow(sdkTx)
+func (b *Blockchain) AddTransaction(tx flowgo.TransactionBody) error {
 
 	// If index > 0, pending block has begun execution (cannot add more transactions)
 	if b.pendingBlock.ExecutionStarted() {
@@ -939,26 +1264,18 @@ func (b *Blockchain) addTransaction(sdkTx sdk.Transaction) error {
 		return fmt.Errorf("failed to check storage for transaction %w", err)
 	}
 
-	err = b.transactionValidator.Validate(tx)
+	err = b.transactionValidator.Validate(&tx)
 	if err != nil {
 		return convertAccessError(err)
 	}
 
 	// add transaction to pending block
-	b.pendingBlock.AddTransaction(*tx)
+	b.pendingBlock.AddTransaction(tx)
 
 	return nil
 }
 
-// ExecuteBlock executes the remaining transactions in pending block.
 func (b *Blockchain) ExecuteBlock() ([]*types.TransactionResult, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	return b.executeBlock()
-}
-
-func (b *Blockchain) executeBlock() ([]*types.TransactionResult, error) {
 	results := make([]*types.TransactionResult, 0)
 
 	// empty blocks do not require execution, treat as a no-op
@@ -967,7 +1284,10 @@ func (b *Blockchain) executeBlock() ([]*types.TransactionResult, error) {
 	}
 
 	header := b.pendingBlock.Block().Header
-	blockContext := b.newFVMContextFromHeader(header)
+	blockContext := fvm.NewContextFromParent(
+		b.vmCtx,
+		fvm.WithBlockHeader(header),
+	)
 
 	// cannot execute a block that has already executed
 	if b.pendingBlock.ExecutionComplete() {
@@ -989,16 +1309,6 @@ func (b *Blockchain) executeBlock() ([]*types.TransactionResult, error) {
 	return results, nil
 }
 
-// ExecuteNextTransaction executes the next indexed transaction in pending block.
-func (b *Blockchain) ExecuteNextTransaction() (*types.TransactionResult, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	header := b.pendingBlock.Block().Header
-	blockContext := b.newFVMContextFromHeader(header)
-	return b.executeNextTransaction(blockContext)
-}
-
 // executeNextTransaction is a helper function for ExecuteBlock and ExecuteNextTransaction that
 // executes the next transaction in the pending block.
 func (b *Blockchain) executeNextTransaction(ctx fvm.Context) (*types.TransactionResult, error) {
@@ -1017,11 +1327,7 @@ func (b *Blockchain) executeNextTransaction(ctx fvm.Context) (*types.Transaction
 			txBody *flowgo.TransactionBody,
 		) (*fvm.TransactionProcedure, error) {
 			tx := fvm.Transaction(txBody, txIndex)
-			b.currentCode = string(txBody.Script)
-			b.currentScriptID = tx.ID.String()
-			if b.debugger != nil {
-				b.debugger.RequestPause()
-			}
+
 			err := b.vm.Run(ctx, tx, ledgerView)
 			if err != nil {
 				return nil, err
@@ -1046,21 +1352,6 @@ func (b *Blockchain) executeNextTransaction(ctx fvm.Context) (*types.Transaction
 	}
 
 	return tr, nil
-}
-
-// CommitBlock seals the current pending block and saves it to storage.
-//
-// This function clears the pending transaction pool and resets the pending block.
-func (b *Blockchain) CommitBlock() (*flowgo.Block, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	block, err := b.commitBlock()
-	if err != nil {
-		return nil, err
-	}
-
-	return block, nil
 }
 
 func (b *Blockchain) commitBlock() (*flowgo.Block, error) {
@@ -1098,7 +1389,27 @@ func (b *Blockchain) commitBlock() (*flowgo.Block, error) {
 	return block, nil
 }
 
-func (b *Blockchain) GetAccountStorage(address sdk.Address) (*AccountStorage, error) {
+// CommitBlock seals the current pending block and saves it to storage.
+//
+// This function clears the pending transaction pool and resets the pending block.
+func (b *Blockchain) CommitBlock() (*flowgo.Block, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	block, err := b.commitBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	b.logger.Debug().Fields(map[string]any{
+		"blockHeight": block.Header.Height,
+		"blockID":     block.Header.ID().String(),
+	}).Msgf("📦  Block #%d committed", block.Header.Height)
+
+	return block, nil
+}
+
+func (b *Blockchain) GetAccountStorage(address flowgo.Address) (*AccountStorage, error) {
 	view := b.pendingBlock.ledgerView.NewChild()
 
 	stateParameters := state.DefaultParameters().
@@ -1184,7 +1495,7 @@ func (b *Blockchain) ExecuteAndCommitBlock() (*flowgo.Block, []*types.Transactio
 // ExecuteAndCommitBlock is a utility that combines ExecuteBlock with CommitBlock.
 func (b *Blockchain) executeAndCommitBlock() (*flowgo.Block, []*types.TransactionResult, error) {
 
-	results, err := b.executeBlock()
+	results, err := b.ExecuteBlock()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1215,77 +1526,6 @@ func (b *Blockchain) ResetPendingBlock() error {
 	return nil
 }
 
-// ExecuteScript executes a read-only script against the world state and returns the result.
-func (b *Blockchain) ExecuteScript(
-	script []byte,
-	arguments [][]byte,
-) (*types.ScriptResult, error) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	latestBlock, err := b.GetLatestBlock()
-	if err != nil {
-		return nil, err
-	}
-
-	return b.ExecuteScriptAtBlock(script, arguments, latestBlock.Header.Height)
-}
-
-func (b *Blockchain) ExecuteScriptAtBlock(
-	script []byte,
-	arguments [][]byte,
-	blockHeight uint64,
-) (*types.ScriptResult, error) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	requestedBlock, err := b.getBlockByHeight(blockHeight)
-	if err != nil {
-		return nil, err
-	}
-
-	requestedLedgerView := b.storage.LedgerViewByHeight(context.Background(), requestedBlock.Header.Height)
-
-	header := requestedBlock.Header
-	blockContext := b.newFVMContextFromHeader(header)
-
-	scriptProc := fvm.Script(script).WithArguments(arguments...)
-	b.currentCode = string(script)
-	b.currentScriptID = scriptProc.ID.String()
-	if b.debugger != nil {
-		b.debugger.RequestPause()
-	}
-	err = b.vm.Run(blockContext, scriptProc, requestedLedgerView)
-	if err != nil {
-		return nil, err
-	}
-
-	scriptID := sdk.Identifier(flowgo.MakeIDFromFingerPrint(script))
-
-	events, err := sdkconvert.FlowEventsToSDK(scriptProc.Events)
-	if err != nil {
-		return nil, err
-	}
-
-	var scriptError error = nil
-	var convertedValue cadence.Value = nil
-
-	if scriptProc.Err == nil {
-		convertedValue = scriptProc.Value
-	} else {
-		scriptError = convert.VMErrorToEmulator(scriptProc.Err)
-	}
-
-	return &types.ScriptResult{
-		ScriptID:        scriptID,
-		Value:           convertedValue,
-		Error:           scriptError,
-		Logs:            scriptProc.Logs,
-		Events:          events,
-		ComputationUsed: scriptProc.GasUsed,
-	}, nil
-}
-
 // CreateAccount submits a transaction to create a new account with the given
 // account keys and contracts. The transaction is paid by the service account.
 func (b *Blockchain) CreateAccount(publicKeys []*sdk.AccountKey, contracts []templates.Contract) (sdk.Address, error) {
@@ -1293,9 +1533,9 @@ func (b *Blockchain) CreateAccount(publicKeys []*sdk.AccountKey, contracts []tem
 	defer b.mu.Unlock()
 
 	serviceKey := b.ServiceKey()
-	serviceAddress := serviceKey.Address
+	serviceAddress := sdkconvert.FlowAddressToSDK(serviceKey.Address)
 
-	latestBlock, err := b.GetLatestBlock()
+	latestBlock, _, err := b.GetLatestBlock()
 	if err != nil {
 		return sdk.Address{}, err
 	}
@@ -1320,7 +1560,7 @@ func (b *Blockchain) CreateAccount(publicKeys []*sdk.AccountKey, contracts []tem
 		return sdk.Address{}, err
 	}
 
-	err = b.addTransaction(*tx)
+	err = b.AddTransaction(*sdkconvert.SDKTransactionToFlow(*tx))
 	if err != nil {
 		return sdk.Address{}, err
 	}
@@ -1399,7 +1639,7 @@ func (b *Blockchain) debugSignatureError(err error, tx *flowgo.TransactionBody) 
 // testAlternativeHashAlgo tries to verify the signature with alternative hashing algorithm and if
 // the signature is verified returns more verbose error
 func (b *Blockchain) testAlternativeHashAlgo(sig flowgo.TransactionSignature, msg []byte) *types.TransactionResultDebug {
-	acc, err := b.getAccount(sig.Address)
+	acc, err := b.GetAccount(sig.Address)
 	if err != nil {
 		return nil
 	}
@@ -1419,6 +1659,85 @@ func (b *Blockchain) testAlternativeHashAlgo(sig flowgo.TransactionSignature, ms
 	}
 
 	return nil
+}
+
+// ExecuteNextTransaction executes the next indexed transaction in pending block.
+func (b *Blockchain) ExecuteNextTransaction() (*types.TransactionResult, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	header := b.pendingBlock.Block().Header
+	blockContext := b.newFVMContextFromHeader(header)
+	return b.executeNextTransaction(blockContext)
+}
+
+func (b *Blockchain) GetTransactionResultByIndex(id flowgo.Identifier, index uint32) (*access.TransactionResult, error) {
+	results, err := b.GetTransactionResultsByBlockID(id)
+	if err != nil {
+		return nil, err
+	}
+	if uint32(len(results)) <= index {
+		return nil, status.Error(codes.NotFound, "TransactionResult not found")
+	}
+	return results[index], nil
+}
+
+func (b *Blockchain) GetTransactionsByBlockID(id flowgo.Identifier) (result []*flowgo.TransactionBody, err error) {
+	block, _, err := b.GetBlockByID(id)
+	if err != nil {
+		switch err.(type) {
+		case NotFoundError:
+			return nil, status.Error(codes.NotFound, err.Error())
+		default:
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	collectionIDs := block.Payload.Index().CollectionIDs
+
+	for _, collectionID := range collectionIDs {
+		collection, err := b.GetCollectionByID(collectionID)
+		if err != nil {
+			return nil, err
+		}
+		for _, transactionID := range collection.Transactions {
+			transaction, err := b.GetTransaction(transactionID)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, transaction)
+		}
+	}
+	return result, nil
+}
+
+func (b *Blockchain) GetTransactionResultsByBlockID(id flowgo.Identifier) (result []*access.TransactionResult, err error) {
+	block, _, err := b.GetBlockByID(id)
+	if err != nil {
+		switch err.(type) {
+		case NotFoundError:
+			return nil, status.Error(codes.NotFound, err.Error())
+		default:
+			return nil, status.Error(codes.Internal, err.Error())
+		}
+	}
+
+	collectionIDs := block.Payload.Index().CollectionIDs
+
+	for _, collectionID := range collectionIDs {
+		collection, err := b.GetCollectionByID(collectionID)
+		if err != nil {
+			return nil, err
+		}
+		for _, transactionID := range collection.Transactions {
+			transactionResult, err := b.GetTransactionResult(transactionID)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, transactionResult)
+		}
+	}
+	return result, nil
 }
 
 func (b *Blockchain) SetDebugger(debugger *interpreter.Debugger) {

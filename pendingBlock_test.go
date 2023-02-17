@@ -1,6 +1,7 @@
 package emulator_test
 
 import (
+	convert "github.com/onflow/flow-emulator/convert/sdk"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
@@ -21,44 +22,45 @@ func setupPendingBlockTests(t *testing.T) (
 		emulator.WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
+	serviceAddress := convert.FlowAddressToSDK(b.ServiceKey().Address)
 
 	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
 		SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-		SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-		SetPayer(b.ServiceKey().Address).
-		AddAuthorizer(b.ServiceKey().Address)
+		SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+		SetPayer(serviceAddress).
+		AddAuthorizer(serviceAddress)
 
 	signer, err := b.ServiceKey().Signer()
 	require.NoError(t, err)
 
-	err = tx1.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+	err = tx1.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 	require.NoError(t, err)
 
 	tx2 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
 		SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-		SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber+1).
-		SetPayer(b.ServiceKey().Address).
-		AddAuthorizer(b.ServiceKey().Address)
+		SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber+1).
+		SetPayer(serviceAddress).
+		AddAuthorizer(serviceAddress)
 
 	signer, err = b.ServiceKey().Signer()
 	assert.NoError(t, err)
-	err = tx2.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+	err = tx2.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 	require.NoError(t, err)
 
 	invalid := flowsdk.NewTransaction().
 		SetScript([]byte(`transaction { execute { panic("revert!") } }`)).
 		SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-		SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-		SetPayer(b.ServiceKey().Address).
-		AddAuthorizer(b.ServiceKey().Address)
+		SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+		SetPayer(serviceAddress).
+		AddAuthorizer(serviceAddress)
 
 	signer, err = b.ServiceKey().Signer()
 	assert.NoError(t, err)
-	err = invalid.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+	err = invalid.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 	require.NoError(t, err)
 
 	return b, tx1, tx2, invalid
@@ -93,11 +95,13 @@ func TestPendingBlockBeforeExecution(t *testing.T) {
 		b, tx, _, _ := setupPendingBlockTests(t)
 
 		// Add tx1 to pending block
-		err := b.AddTransaction(*tx)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx)
+		err := b.AddTransaction(flowTransaction)
 		assert.NoError(t, err)
 
 		// Add tx1 again
-		err = b.AddTransaction(*tx)
+		flowTransaction = *convert.SDKTransactionToFlow(*tx)
+		err = b.AddTransaction(flowTransaction)
 		assert.IsType(t, &emulator.DuplicateTransactionError{}, err)
 
 		err = b.ResetPendingBlock()
@@ -111,7 +115,8 @@ func TestPendingBlockBeforeExecution(t *testing.T) {
 		b, tx, _, _ := setupPendingBlockTests(t)
 
 		// Add tx1 to pending block
-		err := b.AddTransaction(*tx)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx)
+		err := b.AddTransaction(flowTransaction)
 		assert.NoError(t, err)
 
 		// Attempt to commit block before execution begins
@@ -134,11 +139,13 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		b, tx1, _, invalid := setupPendingBlockTests(t)
 
 		// Add tx1 to pending block
-		err := b.AddTransaction(*tx1)
+		flowTransaction1 := *convert.SDKTransactionToFlow(*tx1)
+		err := b.AddTransaction(flowTransaction1)
 		require.NoError(t, err)
 
 		// Add invalid script tx to pending block
-		err = b.AddTransaction(*invalid)
+		flowTransactionInvalid := *convert.SDKTransactionToFlow(*invalid)
+		err = b.AddTransaction(flowTransactionInvalid)
 		require.NoError(t, err)
 
 		// Execute tx1 (succeeds)
@@ -162,11 +169,13 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		b, tx1, _, invalid := setupPendingBlockTests(t)
 
 		// Add tx1 to pending block
-		err := b.AddTransaction(*tx1)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx1)
+		err := b.AddTransaction(flowTransaction)
 		require.NoError(t, err)
 
 		// Add invalid script tx to pending block
-		err = b.AddTransaction(*invalid)
+		flowTransactionInvalid := *convert.SDKTransactionToFlow(*invalid)
+		err = b.AddTransaction(flowTransactionInvalid)
 		require.NoError(t, err)
 
 		// Execute all tx in pending block (tx1, invalid)
@@ -189,15 +198,18 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		b, tx1, tx2, invalid := setupPendingBlockTests(t)
 
 		// Add tx1 to pending block
-		err := b.AddTransaction(*tx1)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx1)
+		err := b.AddTransaction(flowTransaction)
 		assert.NoError(t, err)
 
 		// Add tx2 to pending block
-		err = b.AddTransaction(*tx2)
+		flowTransaction2 := *convert.SDKTransactionToFlow(*tx2)
+		err = b.AddTransaction(flowTransaction2)
 		assert.NoError(t, err)
 
 		// Add invalid script tx to pending block
-		err = b.AddTransaction(*invalid)
+		flowTransactionInvalid := *convert.SDKTransactionToFlow(*invalid)
+		err = b.AddTransaction(flowTransactionInvalid)
 		assert.NoError(t, err)
 
 		// Execute tx1 first (succeeds)
@@ -224,11 +236,13 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		b, tx1, tx2, invalid := setupPendingBlockTests(t)
 
 		// Add tx1 to pending block
-		err := b.AddTransaction(*tx1)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx1)
+		err := b.AddTransaction(flowTransaction)
 		assert.NoError(t, err)
 
 		// Add invalid to pending block
-		err = b.AddTransaction(*invalid)
+		flowTransactionInvalid := *convert.SDKTransactionToFlow(*invalid)
+		err = b.AddTransaction(flowTransactionInvalid)
 		assert.NoError(t, err)
 
 		// Execute tx1 first (succeeds)
@@ -237,7 +251,8 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		assertTransactionSucceeded(t, result)
 
 		// Attempt to add tx2 to pending block after execution begins
-		err = b.AddTransaction(*tx2)
+		flowTransaction2 := *convert.SDKTransactionToFlow(*tx2)
+		err = b.AddTransaction(flowTransaction2)
 		assert.IsType(t, &emulator.PendingBlockMidExecutionError{}, err)
 
 		err = b.ResetPendingBlock()
@@ -251,11 +266,13 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		b, tx1, _, invalid := setupPendingBlockTests(t)
 
 		// Add tx1 to pending block
-		err := b.AddTransaction(*tx1)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx1)
+		err := b.AddTransaction(flowTransaction)
 		assert.NoError(t, err)
 
 		// Add invalid to pending block
-		err = b.AddTransaction(*invalid)
+		flowTransactionInvalid := *convert.SDKTransactionToFlow(*invalid)
+		err = b.AddTransaction(flowTransactionInvalid)
 		assert.NoError(t, err)
 
 		// Execute tx1 first (succeeds)
@@ -278,7 +295,8 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		b, tx1, _, _ := setupPendingBlockTests(t)
 
 		// Add tx1 to pending block
-		err := b.AddTransaction(*tx1)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx1)
+		err := b.AddTransaction(flowTransaction)
 		assert.NoError(t, err)
 
 		// Execute tx1 (succeeds)
@@ -307,6 +325,7 @@ func TestPendingBlockCommit(t *testing.T) {
 		emulator.WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
+	serviceAddress := convert.FlowAddressToSDK(b.ServiceKey().Address)
 
 	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b)
 
@@ -314,18 +333,19 @@ func TestPendingBlockCommit(t *testing.T) {
 		tx1 := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
 			SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-			SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-			SetPayer(b.ServiceKey().Address).
-			AddAuthorizer(b.ServiceKey().Address)
+			SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+			SetPayer(serviceAddress).
+			AddAuthorizer(serviceAddress)
 
 		signer, err := b.ServiceKey().Signer()
 		require.NoError(t, err)
 
-		err = tx1.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+		err = tx1.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 		require.NoError(t, err)
 
 		// Add tx1 to pending block
-		err = b.AddTransaction(*tx1)
+		flowTransaction1 := *convert.SDKTransactionToFlow(*tx1)
+		err = b.AddTransaction(flowTransaction1)
 		require.NoError(t, err)
 
 		// Enter execution mode (block hash should not change after this point)
@@ -346,18 +366,19 @@ func TestPendingBlockCommit(t *testing.T) {
 		tx1 := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
 			SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-			SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-			SetPayer(b.ServiceKey().Address).
-			AddAuthorizer(b.ServiceKey().Address)
+			SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+			SetPayer(serviceAddress).
+			AddAuthorizer(serviceAddress)
 
 		signer, err := b.ServiceKey().Signer()
 		require.NoError(t, err)
 
-		err = tx1.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+		err = tx1.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 		require.NoError(t, err)
 
 		// Add tx1 to pending block
-		err = b.AddTransaction(*tx1)
+		flowTransaction1 := *convert.SDKTransactionToFlow(*tx1)
+		err = b.AddTransaction(flowTransaction1)
 		assert.NoError(t, err)
 
 		// Enter execution mode (block hash should not change after this point)

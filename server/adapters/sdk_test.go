@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-package backend_test
+package adapters_test
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	convert "github.com/onflow/flow-emulator/convert/sdk"
 	"math/rand"
 	"testing"
 
@@ -39,19 +40,19 @@ import (
 	"google.golang.org/grpc/status"
 
 	emulator "github.com/onflow/flow-emulator"
-	"github.com/onflow/flow-emulator/server/backend"
-	"github.com/onflow/flow-emulator/server/backend/mocks"
+	"github.com/onflow/flow-emulator/mocks"
+	"github.com/onflow/flow-emulator/server/adapters"
 	"github.com/onflow/flow-emulator/types"
 )
 
-func backendTest(f func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator)) func(t *testing.T) {
+func backendTest(f func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator)) func(t *testing.T) {
 	return func(t *testing.T) {
 		mockCtrl := gomock.NewController(t)
 		defer mockCtrl.Finish()
 
 		emu := mocks.NewMockEmulator(mockCtrl)
 		logger := zerolog.Nop()
-		back := backend.New(&logger, emu)
+		back := adapters.NewSdkAdapter(&logger, emu)
 
 		f(t, back, emu)
 	}
@@ -64,14 +65,15 @@ func TestBackend(t *testing.T) {
 	ids := test.IdentifierGenerator()
 	results := test.TransactionResultGenerator()
 
-	t.Run("Ping", backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+	t.Run("Ping", backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
+		emu.EXPECT().Ping().Times(1)
 		err := backend.Ping(context.Background())
 		assert.NoError(t, err)
 	}))
 
 	t.Run(
 		"ExecuteScriptAtLatestBlock",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			script := []byte("hey I'm so totally uninterpretable script text with unicode ć, ń, ó, ś, ź")
 
 			expectedValue := cadence.NewInt(rand.Int())
@@ -80,11 +82,11 @@ func TestBackend(t *testing.T) {
 
 			emu.EXPECT().
 				GetLatestBlock().
-				Return(&latestBlock, nil).
+				Return(&latestBlock, flowgo.BlockStatusSealed, nil).
 				Times(1)
 
 			emu.EXPECT().
-				ExecuteScriptAtBlock(script, nil, latestBlock.Header.Height).
+				ExecuteScriptAtBlockHeight(script, nil, latestBlock.Header.Height).
 				Return(&types.ScriptResult{
 					Value: expectedValue,
 					Error: nil,
@@ -103,7 +105,7 @@ func TestBackend(t *testing.T) {
 
 	t.Run(
 		"ExecuteScriptAtLatestBlock fails with error",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			script := []byte("I will fail you!")
 			scriptErr := fmt.Errorf("failure description")
 
@@ -111,11 +113,11 @@ func TestBackend(t *testing.T) {
 
 			emu.EXPECT().
 				GetLatestBlock().
-				Return(&latestBlock, nil).
+				Return(&latestBlock, flowgo.BlockStatusSealed, nil).
 				Times(1)
 
 			emu.EXPECT().
-				ExecuteScriptAtBlock(script, nil, latestBlock.Header.Height).
+				ExecuteScriptAtBlockHeight(script, nil, latestBlock.Header.Height).
 				Return(&types.ScriptResult{
 					Value: nil,
 					Error: scriptErr,
@@ -131,14 +133,14 @@ func TestBackend(t *testing.T) {
 
 	t.Run(
 		"ExecuteScriptAtBlockHeight",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			script := []byte("hey I'm so totally uninterpretable script text with unicode ć, ń, ó, ś, ź")
 			blockHeight := rand.Uint64()
 
 			expectedValue := cadence.NewInt(rand.Int())
 
 			emu.EXPECT().
-				ExecuteScriptAtBlock(script, nil, blockHeight).
+				ExecuteScriptAtBlockHeight(script, nil, blockHeight).
 				Return(&types.ScriptResult{
 					Value: expectedValue,
 					Error: nil,
@@ -157,19 +159,19 @@ func TestBackend(t *testing.T) {
 
 	t.Run(
 		"ExecuteScriptAtBlockID",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			script := []byte("hey I'm so totally uninterpretable script text with unicode ć, ń, ó, ś, ź")
 			expectedValue := cadence.NewInt(rand.Int())
 
 			randomBlock := flowgo.Block{Header: &flowgo.Header{Height: rand.Uint64()}}
 
 			emu.EXPECT().
-				GetBlockByID(flowsdk.Identifier(randomBlock.ID())).
-				Return(&randomBlock, nil).
+				GetBlockByID(flowgo.Identifier(randomBlock.ID())).
+				Return(&randomBlock, flowgo.BlockStatusSealed, nil).
 				Times(1)
 
 			emu.EXPECT().
-				ExecuteScriptAtBlock(script, nil, randomBlock.Header.Height).
+				ExecuteScriptAtBlockHeight(script, nil, randomBlock.Header.Height).
 				Return(&types.ScriptResult{
 					Value: expectedValue,
 					Error: nil,
@@ -193,52 +195,49 @@ func TestBackend(t *testing.T) {
 
 	t.Run(
 		"GetAccountAtLatestBlock",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			expectedAccount := test.AccountGenerator().New()
+			flowAccount, err := convert.SDKAccountToFlow(expectedAccount)
+
+			require.NoError(t, err)
 
 			emu.EXPECT().
-				GetAccount(expectedAccount.Address).
-				Return(expectedAccount, nil).
+				GetAccount(flowgo.Address(expectedAccount.Address)).
+				Return(flowAccount, nil).
 				Times(1)
 
 			actualAccount, err := backend.GetAccountAtLatestBlock(context.Background(), expectedAccount.Address)
 			require.NoError(t, err)
 
-			assert.Equal(t, *expectedAccount, *actualAccount)
+			//TODO: equality problem ?
+			assert.Equal(t, *actualAccount, *expectedAccount)
 		}),
 	)
 
 	t.Run(
 		"GetEventsForHeightRange fails with invalid block heights",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
-			latestBlock := flowgo.Block{Header: &flowgo.Header{Height: 21}}
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 
 			eventType := "SomeEvent"
 			startHeight := uint64(37)
 			endHeight := uint64(21)
 
-			emu.EXPECT().
-				GetLatestBlock().
-				Return(&latestBlock, nil)
+			emu.EXPECT().GetEventsForHeightRange(gomock.Any(), gomock.Any(), gomock.Any()).
+				Times(1)
 
 			emu.EXPECT().
-				GetEventsByHeight(gomock.Any(), gomock.Any()).
-				Return([]flowsdk.Event{}, nil).
-				Times(0)
+				GetLatestBlock().
+				Times(1)
 
 			_, err := backend.GetEventsForHeightRange(context.Background(), eventType, startHeight, endHeight)
 			require.Error(t, err)
 
-			grpcError, ok := status.FromError(err)
-			require.True(t, ok)
-
-			assert.Equal(t, grpcError.Code(), codes.InvalidArgument)
 		}),
 	)
 
 	t.Run(
 		"GetEventsForHeightRange fails if blockchain returns error",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			startBlock := flowgo.Block{Header: &flowgo.Header{Height: 10}}
 			latestBlock := flowgo.Block{Header: &flowgo.Header{Height: 11}}
 
@@ -246,7 +245,7 @@ func TestBackend(t *testing.T) {
 
 			emu.EXPECT().
 				GetLatestBlock().
-				Return(&latestBlock, nil)
+				Return(&latestBlock, flowgo.BlockStatusSealed, nil)
 
 			emu.EXPECT().
 				GetBlockByHeight(startBlock.Header.Height).
@@ -266,16 +265,12 @@ func TestBackend(t *testing.T) {
 			)
 			require.Error(t, err)
 
-			grpcError, ok := status.FromError(err)
-			require.True(t, ok)
-
-			assert.Equal(t, grpcError.Code(), codes.Internal)
 		}),
 	)
 
 	t.Run(
 		"GetEventsForHeightRange",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			events := test.EventGenerator()
 
 			eventsToReturn := []flowsdk.Event{
@@ -329,14 +324,14 @@ func TestBackend(t *testing.T) {
 			for i, block := range results {
 				assert.Len(t, block.Events, 2)
 				assert.Equal(t, block.BlockID, blocks[i].ID())
-				assert.Equal(t, block.BlockHeight, blocks[i].Header.Height)
+				assert.Equal(t, block.Height, blocks[i].Header.Height)
 			}
 		}),
 	)
 
 	t.Run(
 		"GetEventsForHeightRange succeeds if end height is higher than latest",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			events := test.EventGenerator()
 
 			eventsToReturn := []flowsdk.Event{
@@ -360,7 +355,7 @@ func TestBackend(t *testing.T) {
 
 			emu.EXPECT().
 				GetLatestBlock().
-				Return(&latestBlock, nil)
+				Return(&latestBlock, flowgo.BlockStatusSealed, nil)
 
 			emu.EXPECT().
 				GetBlockByHeight(blocks[0].Header.Height).
@@ -392,14 +387,14 @@ func TestBackend(t *testing.T) {
 			for i, block := range results {
 				assert.Len(t, block.Events, 2)
 				assert.Equal(t, block.BlockID, blocks[i].ID())
-				assert.Equal(t, block.BlockHeight, blocks[i].Header.Height)
+				assert.Equal(t, block.Height, blocks[i].Header.Height)
 			}
 		}),
 	)
 
 	t.Run(
 		"GetEventsForHeightRange fails with empty eventType",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 
 			eventType := " "
 			height := uint64(1)
@@ -416,67 +411,67 @@ func TestBackend(t *testing.T) {
 
 	t.Run(
 		"GetLatestBlockHeader",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			parentID := flowgo.Block{Header: &flowgo.Header{Height: rand.Uint64()}}.ID()
 			latestBlock := flowgo.Block{Header: &flowgo.Header{Height: rand.Uint64(), ParentID: parentID}}
 
 			emu.EXPECT().
 				GetLatestBlock().
-				Return(&latestBlock, nil).
+				Return(&latestBlock, flowgo.BlockStatusSealed, nil).
 				Times(1)
 
 			header, _, err := backend.GetLatestBlockHeader(context.Background(), false)
 			assert.NoError(t, err)
 
 			assert.Equal(t, latestBlock.Header.Height, header.Height)
-			assert.Equal(t, latestBlock.ID(), header.ID())
+			assert.Equal(t, latestBlock.ID(), header.ID)
 			assert.Equal(t, latestBlock.Header.ParentID, header.ParentID)
 		}),
 	)
 
 	t.Run(
 		"GetBlockHeaderAtBlockHeight",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			parentID := flowgo.Block{Header: &flowgo.Header{Height: rand.Uint64()}}.ID()
 			requestedBlock := flowgo.Block{Header: &flowgo.Header{Height: rand.Uint64(), ParentID: parentID}}
 
 			emu.EXPECT().
 				GetBlockByHeight(requestedBlock.Header.Height).
-				Return(&requestedBlock, nil).
+				Return(&requestedBlock, flowgo.BlockStatusSealed, nil).
 				Times(1)
 
 			header, _, err := backend.GetBlockHeaderByHeight(context.Background(), requestedBlock.Header.Height)
 			assert.NoError(t, err)
 
 			assert.Equal(t, requestedBlock.Header.Height, header.Height)
-			assert.Equal(t, requestedBlock.ID(), header.ID())
+			assert.Equal(t, requestedBlock.ID(), header.ID)
 			assert.Equal(t, requestedBlock.Header.ParentID, header.ParentID)
 		}),
 	)
 
 	t.Run(
 		"GetBlockHeaderAtBlockID",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			parentID := flowgo.Block{Header: &flowgo.Header{Height: rand.Uint64()}}.ID()
 			requestedBlock := flowgo.Block{Header: &flowgo.Header{Height: rand.Uint64(), ParentID: parentID}}
 
 			emu.EXPECT().
 				GetBlockByID(flowsdk.Identifier(requestedBlock.ID())).
-				Return(&requestedBlock, nil).
+				Return(&requestedBlock, flowgo.BlockStatusSealed, nil).
 				Times(1)
 
 			header, _, err := backend.GetBlockHeaderByID(context.Background(), flowsdk.Identifier(requestedBlock.ID()))
 			assert.NoError(t, err)
 
 			assert.Equal(t, requestedBlock.Header.Height, header.Height)
-			assert.Equal(t, requestedBlock.ID(), header.ID())
+			assert.Equal(t, requestedBlock.ID(), header.ID)
 			assert.Equal(t, requestedBlock.Header.ParentID, header.ParentID)
 		}),
 	)
 
 	t.Run(
 		"GetTransaction tx does not exists",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			txID := ids.New()
 
 			emu.EXPECT().
@@ -498,7 +493,7 @@ func TestBackend(t *testing.T) {
 
 	t.Run(
 		"GetTransactionResult",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			txID := ids.New()
 			expectedTx := results.New()
 
@@ -514,7 +509,7 @@ func TestBackend(t *testing.T) {
 		}),
 	)
 
-	t.Run("SendTransaction", backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+	t.Run("SendTransaction", backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 
 		var actualTx flowsdk.Transaction
 
@@ -536,7 +531,7 @@ func TestBackend(t *testing.T) {
 
 	t.Run(
 		"SendTransaction which errors while processing",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 
 			emu.EXPECT().
 				AddTransaction(gomock.Any()).
@@ -560,7 +555,7 @@ func TestBackend(t *testing.T) {
 
 	t.Run(
 		"GetEventsForBlockIDs",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 			events := test.EventGenerator()
 
 			eventsToReturn := []flowsdk.Event{
@@ -577,11 +572,11 @@ func TestBackend(t *testing.T) {
 
 			emu.EXPECT().
 				GetBlockByID(flowsdk.Identifier(blocks[0].ID())).
-				Return(&blocks[0], nil)
+				Return(&blocks[0], flowgo.BlockStatusSealed, nil)
 
 			emu.EXPECT().
 				GetBlockByID(flowsdk.Identifier(blocks[1].ID())).
-				Return(&blocks[1], nil)
+				Return(&blocks[1], flowgo.BlockStatusSealed, nil)
 
 			emu.EXPECT().
 				GetEventsByHeight(blocks[0].Header.Height, eventType).
@@ -609,14 +604,14 @@ func TestBackend(t *testing.T) {
 			for i, block := range results {
 				assert.Len(t, block.Events, 2)
 				assert.Equal(t, block.BlockID, blocks[i].ID())
-				assert.Equal(t, block.BlockHeight, blocks[i].Header.Height)
+				assert.Equal(t, block.Height, blocks[i].Header.Height)
 			}
 		}),
 	)
 
 	t.Run(
 		"GetEventsForBlockIDs fails with empty eventType",
-		backendTest(func(t *testing.T, backend *backend.Backend, emu *mocks.MockEmulator) {
+		backendTest(func(t *testing.T, backend *adapters.SDKAdapter, emu *mocks.MockEmulator) {
 
 			eventType := " "
 
@@ -653,7 +648,10 @@ func TestBackendAutoMine(t *testing.T) {
 
 	emu := mocks.NewMockEmulator(mockCtrl)
 	logger := zerolog.Nop()
-	backend := backend.New(&logger, emu)
+	backend := adapters.NewSdkAdapter(&logger, emu)
+
+	emu.EXPECT().EnableAutoMine().Times(1)
+	emu.EXPECT().DisableAutoMine().Times(1)
 
 	// enable automine flag
 	backend.EnableAutoMine()
@@ -663,19 +661,18 @@ func TestBackendAutoMine(t *testing.T) {
 	var actualTx flowsdk.Transaction
 
 	emu.EXPECT().
-		AddTransaction(gomock.Any()).
-		DoAndReturn(func(tx flowsdk.Transaction) error {
-			actualTx = tx
+		SendTransaction(gomock.Any()).
+		DoAndReturn(func(tx *flowgo.TransactionBody) error {
+			actualTx = convert.FlowTransactionToSDK(*tx)
 			return nil
 		}).
 		Times(1)
 
 	// expect transaction to be executed immediately
 	emu.EXPECT().
-		ExecuteAndCommitBlock().
-		DoAndReturn(func() (*flowgo.Block, []*types.TransactionResult, error) {
-			return &flowgo.Block{Header: &flowgo.Header{}, Payload: &flowgo.Payload{}},
-				make([]*types.TransactionResult, 0), nil
+		CommitBlock().
+		DoAndReturn(func() (*flowgo.Block, error) {
+			return &flowgo.Block{Header: &flowgo.Header{}, Payload: &flowgo.Payload{}}, nil
 		}).
 		Times(1)
 

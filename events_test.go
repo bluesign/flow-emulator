@@ -2,6 +2,8 @@ package emulator_test
 
 import (
 	"fmt"
+	jsoncdc "github.com/onflow/cadence/encoding/json"
+	convert "github.com/onflow/flow-emulator/convert/sdk"
 	"testing"
 
 	"github.com/onflow/cadence/runtime/common"
@@ -51,6 +53,7 @@ func TestEventEmitted(t *testing.T) {
 			emulator.WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
+		serviceAddress := convert.FlowAddressToSDK(b.ServiceKey().Address)
 
 		accountContracts := []templates.Contract{
 			{
@@ -88,16 +91,17 @@ func TestEventEmitted(t *testing.T) {
 		tx := flowsdk.NewTransaction().
 			SetScript(script).
 			SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-			SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-			SetPayer(b.ServiceKey().Address)
+			SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+			SetPayer(serviceAddress)
 
 		signer, err := b.ServiceKey().Signer()
 		require.NoError(t, err)
 
-		err = tx.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+		err = tx.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 		require.NoError(t, err)
 
-		err = b.AddTransaction(*tx)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx)
+		err = b.AddTransaction(flowTransaction)
 		assert.NoError(t, err)
 
 		result, err := b.ExecuteNextTransaction()
@@ -120,11 +124,14 @@ func TestEventEmitted(t *testing.T) {
 
 		actualEvent := events[0]
 
-		decodedEvent := actualEvent.Value
+		decodedEventValue, err := jsoncdc.Decode(nil, actualEvent.Payload)
+		require.NoError(t, err)
 
-		expectedID := flowsdk.Event{TransactionID: tx.ID(), EventIndex: 0}.ID()
+		decodedEvent := decodedEventValue.(cadence.Event)
 
-		assert.Equal(t, string(expectedType), actualEvent.Type)
+		expectedID := flowgo.Event{TransactionID: convert.SDKIdentifierToFlow(tx.ID()), EventIndex: 0}.ID()
+
+		assert.Equal(t, string(expectedType), string(actualEvent.Type))
 		assert.Equal(t, expectedID, actualEvent.ID())
 		assert.Equal(t, cadence.NewInt(1), decodedEvent.Fields[0])
 		assert.Equal(t, cadence.NewInt(2), decodedEvent.Fields[1])

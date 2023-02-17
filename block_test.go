@@ -20,6 +20,7 @@ package emulator_test
 
 import (
 	"fmt"
+	convert "github.com/onflow/flow-emulator/convert/sdk"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
@@ -38,50 +39,53 @@ func TestCommitBlock(t *testing.T) {
 		emulator.WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
+	serviceAddress := convert.FlowAddressToSDK(b.ServiceKey().Address)
 
 	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
 		SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-		SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-		SetPayer(b.ServiceKey().Address).
-		AddAuthorizer(b.ServiceKey().Address)
+		SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+		SetPayer(serviceAddress).
+		AddAuthorizer(serviceAddress)
 
 	signer, err := b.ServiceKey().Signer()
 	require.NoError(t, err)
 
-	err = tx1.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+	err = tx1.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 	require.NoError(t, err)
 
 	// Add tx1 to pending block
-	err = b.AddTransaction(*tx1)
+	flowTransaction := *convert.SDKTransactionToFlow(*tx1)
+	err = b.AddTransaction(flowTransaction)
 	assert.NoError(t, err)
 
-	tx1Result, err := b.GetTransactionResult(tx1.ID())
+	tx1Result, err := b.GetTransactionResult(convert.SDKIdentifierToFlow(tx1.ID()))
 	assert.NoError(t, err)
-	assert.Equal(t, flowsdk.TransactionStatusPending, tx1Result.Status)
+	assert.Equal(t, flowgo.TransactionStatusPending, tx1Result.Status)
 
 	tx2 := flowsdk.NewTransaction().
 		SetScript([]byte(`transaction { execute { panic("revert!") } }`)).
 		SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-		SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-		SetPayer(b.ServiceKey().Address).
-		AddAuthorizer(b.ServiceKey().Address)
+		SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+		SetPayer(serviceAddress).
+		AddAuthorizer(serviceAddress)
 
 	signer, err = b.ServiceKey().Signer()
 	require.NoError(t, err)
 
-	err = tx2.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+	err = tx2.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 	require.NoError(t, err)
 
 	// Add tx2 to pending block
-	err = b.AddTransaction(*tx2)
+	flowTransaction2 := *convert.SDKTransactionToFlow(*tx2)
+	err = b.AddTransaction(flowTransaction2)
 	require.NoError(t, err)
 
-	tx2Result, err := b.GetTransactionResult(tx2.ID())
+	tx2Result, err := b.GetTransactionResult(convert.SDKIdentifierToFlow(tx2.ID()))
 	assert.NoError(t, err)
-	assert.Equal(t, flowsdk.TransactionStatusPending, tx2Result.Status)
+	assert.Equal(t, flowgo.TransactionStatusPending, tx2Result.Status)
 
 	// Execute tx1
 	result, err := b.ExecuteNextTransaction()
@@ -98,15 +102,15 @@ func TestCommitBlock(t *testing.T) {
 	assert.NoError(t, err)
 
 	// tx1 status becomes TransactionStatusSealed
-	tx1Result, err = b.GetTransactionResult(tx1.ID())
+	tx1Result, err = b.GetTransactionResult(convert.SDKIdentifierToFlow(tx1.ID()))
 	require.NoError(t, err)
-	assert.Equal(t, flowsdk.TransactionStatusSealed, tx1Result.Status)
+	assert.Equal(t, flowgo.TransactionStatusSealed, tx1Result.Status)
 
 	// tx2 status also becomes TransactionStatusSealed, even though it is reverted
-	tx2Result, err = b.GetTransactionResult(tx2.ID())
+	tx2Result, err = b.GetTransactionResult(convert.SDKIdentifierToFlow(tx2.ID()))
 	require.NoError(t, err)
-	assert.Equal(t, flowsdk.TransactionStatusSealed, tx2Result.Status)
-	assert.Error(t, tx2Result.Error)
+	assert.Equal(t, flowgo.TransactionStatusSealed, tx2Result.Status)
+	assert.NotEmpty(t, tx2Result.ErrorMessage)
 }
 
 func TestBlockView(t *testing.T) {
@@ -117,9 +121,10 @@ func TestBlockView(t *testing.T) {
 
 	b, err := emulator.NewBlockchain()
 	require.NoError(t, err)
+	serviceAddress := convert.FlowAddressToSDK(b.ServiceKey().Address)
 
 	t.Run("genesis should have 0 view", func(t *testing.T) {
-		block, err := b.GetBlockByHeight(0)
+		block, _, err := b.GetBlockByHeight(0)
 		require.NoError(t, err)
 		assert.Equal(t, uint64(0), block.Header.Height)
 		assert.Equal(t, uint64(0), block.Header.View)
@@ -133,18 +138,19 @@ func TestBlockView(t *testing.T) {
 		tx := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
 			SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-			SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-			SetPayer(b.ServiceKey().Address).
-			AddAuthorizer(b.ServiceKey().Address)
+			SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+			SetPayer(serviceAddress).
+			AddAuthorizer(serviceAddress)
 
 		signer, err := b.ServiceKey().Signer()
 		require.NoError(t, err)
 
-		err = tx.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+		err = tx.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 		require.NoError(t, err)
 
 		// Add tx to pending block
-		err = b.AddTransaction(*tx)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx)
+		err = b.AddTransaction(flowTransaction)
 		assert.NoError(t, err)
 
 		// execute and commit the block
@@ -153,7 +159,7 @@ func TestBlockView(t *testing.T) {
 	}
 
 	for height := uint64(1); height <= nBlocks+1; height++ {
-		block, err := b.GetBlockByHeight(height)
+		block, _, err := b.GetBlockByHeight(height)
 		require.NoError(t, err)
 
 		maxView := height * emulator.MaxViewIncrease

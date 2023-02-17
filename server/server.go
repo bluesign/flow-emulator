@@ -20,6 +20,8 @@ package server
 
 import (
 	"fmt"
+	"github.com/onflow/flow-emulator/storage/redis"
+	"github.com/onflow/flow-emulator/storage/sqlite"
 	"os"
 	"time"
 
@@ -32,7 +34,7 @@ import (
 	"github.com/rs/zerolog"
 
 	emulator "github.com/onflow/flow-emulator"
-	"github.com/onflow/flow-emulator/server/backend"
+	"github.com/onflow/flow-emulator/server/adapters"
 	"github.com/onflow/flow-emulator/server/debugger"
 	"github.com/onflow/flow-emulator/storage"
 )
@@ -43,7 +45,6 @@ import (
 type EmulatorServer struct {
 	logger     *zerolog.Logger
 	config     *Config
-	backend    *backend.Backend
 	group      *graceland.Group
 	liveness   graceland.Routine
 	storage    graceland.Routine
@@ -124,9 +125,9 @@ type Config struct {
 	Host string
 	//Chain to emulation
 	ChainID flowgo.ChainID
-	//Redis URL for redis storage backend
+	//Redis URL for redis storage adapters
 	RedisURL string
-	//Sqlite URL for sqlite storage backend
+	//Sqlite URL for sqlite storage adapters
 	SqliteURL string
 }
 
@@ -144,7 +145,7 @@ func NewEmulatorServer(logger *zerolog.Logger, conf *Config) *EmulatorServer {
 		return nil
 	}
 
-	blockchain, err := configureBlockchain(conf, store.Store())
+	blockchain, err := configureBlockchain(logger, conf, store)
 	if err != nil {
 		logger.Err(err).Msg("❗  Failed to configure emulated blockchain")
 		return nil
@@ -164,22 +165,23 @@ func NewEmulatorServer(logger *zerolog.Logger, conf *Config) *EmulatorServer {
 	}
 
 	if conf.WithContracts {
-		deployments, err := deployContracts(blockchain)
+		deployments, err := emulator.DeployContracts(blockchain)
 		if err != nil {
 			logger.Error().Err(err).Msg("❗  Failed to deploy contracts")
 		}
 
 		for _, contract := range deployments {
 			logger.Info().Fields(map[string]any{
-				contract.name: fmt.Sprintf("0x%s", contract.address.Hex())}).Msg(contract.description)
+				contract.Name: fmt.Sprintf("0x%s", contract.Address.Hex())}).Msg(contract.Description)
 		}
 	}
 
-	be := configureBackend(logger, conf, blockchain)
+	accessAdapter := adapters.NewAccessAdapter(logger, blockchain)
 
 	livenessTicker := NewLivenessTicker(conf.LivenessCheckTolerance)
-	grpcServer := NewGRPCServer(logger, be, blockchain.GetChain(), conf.Host, conf.GRPCPort, conf.GRPCDebug)
-	restServer, err := NewRestServer(logger, be, blockchain.GetChain(), conf.Host, conf.RESTPort, conf.RESTDebug)
+	grpcServer := NewGRPCServer(logger, accessAdapter, blockchain.GetChain(), conf.Host, conf.GRPCPort, conf.GRPCDebug)
+	restServer, err := NewRestServer(logger, accessAdapter, blockchain.GetChain(), conf.Host, conf.RESTPort, conf.RESTDebug)
+
 	if err != nil {
 		logger.Error().Err(err).Msg("❗  Failed to startup REST API")
 		return nil
@@ -188,39 +190,23 @@ func NewEmulatorServer(logger *zerolog.Logger, conf *Config) *EmulatorServer {
 	server := &EmulatorServer{
 		logger:     logger,
 		config:     conf,
-		backend:    be,
 		storage:    store,
 		liveness:   livenessTicker,
 		grpc:       grpcServer,
 		rest:       restServer,
 		admin:      nil,
 		blockchain: blockchain,
-		debugger:   debugger.New(logger, be, conf.DebuggerPort),
+		debugger:   debugger.New(logger, blockchain, conf.DebuggerPort),
 	}
 
-	server.admin = NewAdminServer(logger, server, be, &store, grpcServer, livenessTicker, conf.Host, conf.AdminPort, conf.HTTPHeaders)
+	server.admin = NewAdminServer(logger, server, accessAdapter, store, grpcServer, livenessTicker, conf.Host, conf.AdminPort, conf.HTTPHeaders)
 
 	// only create blocks ticker if block time > 0
 	if conf.BlockTime > 0 {
-		server.blocks = NewBlocksTicker(be, conf.BlockTime)
+		server.blocks = NewBlocksTicker(blockchain, conf.BlockTime)
 	}
 
 	return server
-}
-
-// Listen starts listening for incoming connections.
-//
-// After this non-blocking function executes we can treat the
-// emulator server as ready.
-func (s *EmulatorServer) Listen() error {
-	for _, lis := range []listener{s.grpc, s.rest, s.admin} {
-		err := lis.Listen()
-		if err != nil { // fail quick
-			return err
-		}
-	}
-
-	return nil
 }
 
 // Start starts the Flow Emulator server.
@@ -282,10 +268,10 @@ func (s *EmulatorServer) Stop() {
 	s.logger.Info().Msg("🛑  Server stopped")
 }
 
-func configureStorage(logger *zerolog.Logger, conf *Config) (storageProvider Storage, err error) {
+func configureStorage(logger *zerolog.Logger, conf *Config) (storageProvider storage.Store, err error) {
 
 	if conf.RedisURL != "" {
-		storageProvider, err = NewRedisStorage(conf.RedisURL)
+		storageProvider, err = redis.New(conf.RedisURL)
 		if err != nil {
 			return nil, err
 		}
@@ -295,7 +281,7 @@ func configureStorage(logger *zerolog.Logger, conf *Config) (storageProvider Sto
 		if storageProvider != nil {
 			return nil, fmt.Errorf("you cannot define more than one storage")
 		}
-		storageProvider, err = NewSqliteStorage(conf.SqliteURL)
+		storageProvider, err = sqlite.New(conf.SqliteURL)
 		if err != nil {
 			return nil, err
 		}
@@ -306,21 +292,21 @@ func configureStorage(logger *zerolog.Logger, conf *Config) (storageProvider Sto
 			return nil, fmt.Errorf("you cannot use persist with current configuration")
 		}
 		_ = os.Mkdir(conf.DBPath, os.ModePerm)
-		storageProvider, err = NewSqliteStorage(conf.DBPath)
+		storageProvider, err = sqlite.New(conf.DBPath)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if storageProvider == nil {
-		storageProvider, err = NewSqliteStorage(":memory:")
+		storageProvider, err = sqlite.New(":memory:")
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if conf.Snapshot {
-		snapshotProvider, isSnapshotProvider := storageProvider.Store().(storage.SnapshotProvider)
+		snapshotProvider, isSnapshotProvider := storageProvider.(storage.SnapshotProvider)
 		if !isSnapshotProvider {
 			return nil, fmt.Errorf("selected storage provider does not support snapshots")
 		}
@@ -332,8 +318,9 @@ func configureStorage(logger *zerolog.Logger, conf *Config) (storageProvider Sto
 	return storageProvider, err
 }
 
-func configureBlockchain(conf *Config, store storage.Store) (*emulator.Blockchain, error) {
+func configureBlockchain(logger *zerolog.Logger, conf *Config, store storage.Store) (*emulator.Blockchain, error) {
 	options := []emulator.Option{
+		emulator.WithLogger(logger),
 		emulator.WithStore(store),
 		emulator.WithGenesisTokenSupply(conf.GenesisTokenSupply),
 		emulator.WithTransactionMaxGasLimit(conf.TransactionMaxGasLimit),
@@ -381,8 +368,8 @@ func configureBlockchain(conf *Config, store storage.Store) (*emulator.Blockchai
 	return blockchain, nil
 }
 
-func configureBackend(logger *zerolog.Logger, conf *Config, blockchain *emulator.Blockchain) *backend.Backend {
-	b := backend.New(logger, blockchain)
+func configureBackend(logger *zerolog.Logger, conf *Config, blockchain *emulator.Blockchain) *adapters.SDKAdapter {
+	b := adapters.NewSdkAdapter(logger, blockchain)
 
 	if conf.BlockTime == 0 {
 		b.EnableAutoMine()

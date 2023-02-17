@@ -33,12 +33,12 @@ func TestInitialization(t *testing.T) {
 
 		b, _ := emulator.NewBlockchain(emulator.WithStore(store))
 
-		serviceAcct, err := b.GetAccount(flowsdk.ServiceAddress(flowsdk.Emulator))
+		serviceAcct, err := b.GetAccount(convert.SDKAddressToFlow(flowsdk.ServiceAddress(flowsdk.Emulator)))
 		require.NoError(t, err)
 
 		assert.NotNil(t, serviceAcct)
 
-		latestBlock, err := b.GetLatestBlock()
+		latestBlock, _, err := b.GetLatestBlock()
 		require.NoError(t, err)
 
 		assert.EqualValues(t, 0, latestBlock.Header.Height)
@@ -59,6 +59,7 @@ func TestInitialization(t *testing.T) {
 		defer store.Close()
 
 		b, _ := emulator.NewBlockchain(emulator.WithStore(store), emulator.WithStorageLimitEnabled(false))
+		serviceAddress := convert.FlowAddressToSDK(b.ServiceKey().Address)
 
 		contracts := []templates.Contract{
 			{
@@ -94,17 +95,18 @@ func TestInitialization(t *testing.T) {
 		tx := flowsdk.NewTransaction().
 			SetScript([]byte(script)).
 			SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-			SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-			SetPayer(b.ServiceKey().Address).
-			AddAuthorizer(b.ServiceKey().Address)
+			SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+			SetPayer(serviceAddress).
+			AddAuthorizer(serviceAddress)
 
 		signer, err := b.ServiceKey().Signer()
 		require.NoError(t, err)
 
-		err = tx.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+		err = tx.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 		require.NoError(t, err)
 
-		err = b.AddTransaction(*tx)
+		flowTransaction := *convert.SDKTransactionToFlow(*tx)
+		err = b.AddTransaction(flowTransaction)
 		require.NoError(t, err)
 
 		result, err := b.ExecuteNextTransaction()
@@ -115,7 +117,7 @@ func TestInitialization(t *testing.T) {
 		assert.NoError(t, err)
 		require.NotNil(t, block)
 
-		minedTx, err := b.GetTransaction(tx.ID())
+		minedTx, err := b.GetTransaction(convert.SDKIdentifierToFlow(tx.ID()))
 		require.NoError(t, err)
 
 		minedEvents, err := b.GetEventsByHeight(block.Header.Height, "")
@@ -125,24 +127,24 @@ func TestInitialization(t *testing.T) {
 		b, _ = emulator.NewBlockchain(emulator.WithStore(store))
 
 		t.Run("should be able to read blocks", func(t *testing.T) {
-			latestBlock, err := b.GetLatestBlock()
+			latestBlock, _, err := b.GetLatestBlock()
 			require.NoError(t, err)
 
 			assert.Equal(t, block.ID(), latestBlock.ID())
 
-			blockByHeight, err := b.GetBlockByHeight(block.Header.Height)
+			blockByHeight, _, err := b.GetBlockByHeight(block.Header.Height)
 			require.NoError(t, err)
 
 			assert.Equal(t, block.ID(), blockByHeight.ID())
 
-			blockByHash, err := b.GetBlockByID(convert.FlowIdentifierToSDK(block.ID()))
+			blockByHash, _, err := b.GetBlockByID(block.ID())
 			require.NoError(t, err)
 
 			assert.Equal(t, block.ID(), blockByHash.ID())
 		})
 
 		t.Run("should be able to read transactions", func(t *testing.T) {
-			txByHash, err := b.GetTransaction(tx.ID())
+			txByHash, err := b.GetTransaction(convert.SDKIdentifierToFlow(tx.ID()))
 			require.NoError(t, err)
 
 			assert.Equal(t, minedTx, txByHash)

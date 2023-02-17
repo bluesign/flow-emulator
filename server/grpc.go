@@ -23,7 +23,7 @@ import (
 	"net"
 
 	grpcprometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/onflow/flow-emulator/server/backend"
+	"github.com/onflow/flow-emulator/server/adapters"
 	"github.com/onflow/flow-go/access"
 	legacyaccess "github.com/onflow/flow-go/access/legacy"
 	"github.com/onflow/flow-go/model/flow"
@@ -42,16 +42,14 @@ type GRPCServer struct {
 	listener   net.Listener
 }
 
-func NewGRPCServer(logger *zerolog.Logger, b *backend.Backend, chain flow.Chain, host string, port int, debug bool) *GRPCServer {
+func NewGRPCServer(logger *zerolog.Logger, adapter *adapters.AccessAdapter, chain flow.Chain, host string, port int, debug bool) *GRPCServer {
 	grpcServer := grpc.NewServer(
 		grpc.StreamInterceptor(grpcprometheus.StreamServerInterceptor),
 		grpc.UnaryInterceptor(grpcprometheus.UnaryServerInterceptor),
 	)
 
-	adaptedBackend := backend.NewAdapter(b)
-
-	legacyaccessproto.RegisterAccessAPIServer(grpcServer, legacyaccess.NewHandler(adaptedBackend, chain))
-	accessproto.RegisterAccessAPIServer(grpcServer, access.NewHandler(adaptedBackend, chain))
+	legacyaccessproto.RegisterAccessAPIServer(grpcServer, legacyaccess.NewHandler(adapter, chain))
+	accessproto.RegisterAccessAPIServer(grpcServer, access.NewHandler(adapter, chain))
 
 	grpcprometheus.Register(grpcServer)
 

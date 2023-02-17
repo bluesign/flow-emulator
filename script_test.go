@@ -2,6 +2,7 @@ package emulator_test
 
 import (
 	"fmt"
+	convert "github.com/onflow/flow-emulator/convert/sdk"
 	"testing"
 
 	"github.com/onflow/cadence"
@@ -23,23 +24,24 @@ func TestExecuteScript(t *testing.T) {
 		emulator.WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
+	serviceAddress := convert.FlowAddressToSDK(b.ServiceKey().Address)
 
 	addTwoScript, counterAddress := deployAndGenerateAddTwoScript(t, b)
 
 	tx := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
 		SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-		SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-		SetPayer(b.ServiceKey().Address).
-		AddAuthorizer(b.ServiceKey().Address)
+		SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+		SetPayer(serviceAddress).
+		AddAuthorizer(serviceAddress)
 
 	signer, err := b.ServiceKey().Signer()
 	require.NoError(t, err)
 
-	err = tx.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+	err = tx.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 	require.NoError(t, err)
 
-	callScript := generateGetCounterCountScript(counterAddress, b.ServiceKey().Address)
+	callScript := generateGetCounterCountScript(counterAddress, serviceAddress)
 
 	// Sample call (value is 0)
 	scriptResult, err := b.ExecuteScript([]byte(callScript), nil)
@@ -47,7 +49,8 @@ func TestExecuteScript(t *testing.T) {
 	assert.Equal(t, cadence.NewInt(0), scriptResult.Value)
 
 	// Submit tx (script adds 2)
-	err = b.AddTransaction(*tx)
+	flowTransaction := *convert.SDKTransactionToFlow(*tx)
+	err = b.AddTransaction(flowTransaction)
 	assert.NoError(t, err)
 
 	txResult, err := b.ExecuteNextTransaction()

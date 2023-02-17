@@ -20,17 +20,16 @@ package server
 
 import (
 	"encoding/json"
+	"github.com/onflow/flow-emulator/server/adapters"
+	flowgo "github.com/onflow/flow-go/model/flow"
 	"net/http"
 
 	fvmerrors "github.com/onflow/flow-go/fvm/errors"
-
-	flowsdk "github.com/onflow/flow-go-sdk"
 
 	"github.com/gorilla/mux"
 
 	"golang.org/x/exp/slices"
 
-	"github.com/onflow/flow-emulator/server/backend"
 	"github.com/onflow/flow-emulator/storage"
 )
 
@@ -43,16 +42,16 @@ type BlockResponse struct {
 type EmulatorAPIServer struct {
 	router  *mux.Router
 	server  *EmulatorServer
-	backend *backend.Backend
-	storage *Storage
+	adapter *adapters.AccessAdapter
+	store   storage.Store
 }
 
-func NewEmulatorAPIServer(server *EmulatorServer, backend *backend.Backend, storage *Storage) *EmulatorAPIServer {
+func NewEmulatorAPIServer(server *EmulatorServer, adapter *adapters.AccessAdapter, store storage.Store) *EmulatorAPIServer {
 	router := mux.NewRouter().StrictSlash(true)
 	r := &EmulatorAPIServer{router: router,
 		server:  server,
-		backend: backend,
-		storage: storage,
+		adapter: adapter,
+		store:   store,
 	}
 
 	router.HandleFunc("/emulator/newBlock", r.CommitBlock)
@@ -85,19 +84,24 @@ func (m EmulatorAPIServer) Config(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(s)
 }
 
-func (m EmulatorAPIServer) CommitBlock(w http.ResponseWriter, r *http.Request) {
+func (m EmulatorAPIServer) CommitBlock(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	m.backend.CommitBlock()
 
-	header, _, err := m.backend.GetLatestBlockHeader(r.Context(), true)
+	_, err := m.adapter.Emulator().CommitBlock()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	block, _, err := m.adapter.Emulator().GetLatestBlock()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	blockResponse := &BlockResponse{
-		Height:  int(header.Height),
-		BlockId: header.ID().String(),
+		Height:  int(block.Header.Height),
+		BlockId: block.ID().String(),
 	}
 
 	err = json.NewEncoder(w).Encode(blockResponse)
@@ -109,9 +113,9 @@ func (m EmulatorAPIServer) CommitBlock(w http.ResponseWriter, r *http.Request) {
 }
 func (m EmulatorAPIServer) SnapshotList(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	snapshotProvider, isSnapshotProvider := (*m.storage).Store().(storage.SnapshotProvider)
+	snapshotProvider, isSnapshotProvider := m.store.(storage.SnapshotProvider)
 	if !isSnapshotProvider || !snapshotProvider.SupportSnapshotsWithCurrentConfig() {
-		m.server.logger.Error().Msg("State management is not available with current storage backend")
+		m.server.logger.Error().Msg("State management is not available with current storage adapters")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -133,14 +137,14 @@ func (m EmulatorAPIServer) SnapshotList(w http.ResponseWriter, _ *http.Request) 
 }
 
 func (m EmulatorAPIServer) reloadBlockchainFromSnapshot(name string, snapshotProvider storage.Store, w http.ResponseWriter) {
-	blockchain, err := configureBlockchain(m.server.config, snapshotProvider)
+	blockchain, err := configureBlockchain(m.server.logger, m.server.config, snapshotProvider)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	m.adapter.SetEmulator(blockchain)
 
-	m.backend.SetEmulator(blockchain)
-	block, err := blockchain.GetLatestBlock()
+	block, _, err := m.adapter.Emulator().GetLatestBlock()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -168,9 +172,9 @@ func (m EmulatorAPIServer) SnapshotJump(w http.ResponseWriter, r *http.Request) 
 	vars := mux.Vars(r)
 	name := vars["name"]
 
-	snapshotProvider, isSnapshotProvider := (*m.storage).Store().(storage.SnapshotProvider)
+	snapshotProvider, isSnapshotProvider := m.store.(storage.SnapshotProvider)
 	if !isSnapshotProvider || !snapshotProvider.SupportSnapshotsWithCurrentConfig() {
-		m.server.logger.Error().Msg("State management is not available with current storage backend")
+		m.server.logger.Error().Msg("State management is not available with current storage adapters")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -190,7 +194,7 @@ func (m EmulatorAPIServer) SnapshotJump(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	m.reloadBlockchainFromSnapshot(name, (*m.storage).Store(), w)
+	m.reloadBlockchainFromSnapshot(name, m.store, w)
 
 }
 
@@ -202,9 +206,9 @@ func (m EmulatorAPIServer) SnapshotCreate(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	snapshotProvider, isSnapshotProvider := (*m.storage).Store().(storage.SnapshotProvider)
+	snapshotProvider, isSnapshotProvider := m.store.(storage.SnapshotProvider)
 	if !isSnapshotProvider || !snapshotProvider.SupportSnapshotsWithCurrentConfig() {
-		m.server.logger.Error().Msg("State management is not available with current storage backend")
+		m.server.logger.Error().Msg("State management is not available with current storage adapters")
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -223,7 +227,7 @@ func (m EmulatorAPIServer) SnapshotCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	m.reloadBlockchainFromSnapshot(name, (*m.storage).Store(), w)
+	m.reloadBlockchainFromSnapshot(name, m.store, w)
 
 }
 
@@ -232,9 +236,9 @@ func (m EmulatorAPIServer) Storage(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	address := vars["address"]
 
-	addr := flowsdk.HexToAddress(address)
+	addr := flowgo.HexToAddress(address)
 
-	accountStorage, err := m.backend.GetAccountStorage(addr)
+	accountStorage, err := m.adapter.Emulator().GetAccountStorage(addr)
 	if err != nil {
 		if fvmerrors.IsAccountNotFoundError(err) {
 			w.WriteHeader(http.StatusNotFound)

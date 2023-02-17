@@ -38,30 +38,31 @@ func TestCollections(t *testing.T) {
 			emulator.WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
+		serviceAddress := convert.FlowAddressToSDK(b.ServiceKey().Address)
 
 		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b)
 
 		tx1 := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
 			SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-			SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-			SetPayer(b.ServiceKey().Address).
-			AddAuthorizer(b.ServiceKey().Address)
+			SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+			SetPayer(serviceAddress).
+			AddAuthorizer(serviceAddress)
 
 		signer, err := b.ServiceKey().Signer()
 		require.NoError(t, err)
 
-		err = tx1.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+		err = tx1.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 		require.NoError(t, err)
 
 		tx2 := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
 			SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
-			SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
-			SetPayer(b.ServiceKey().Address).
-			AddAuthorizer(b.ServiceKey().Address)
+			SetProposalKey(serviceAddress, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+			SetPayer(serviceAddress).
+			AddAuthorizer(serviceAddress)
 
-		err = tx2.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+		err = tx2.SignEnvelope(serviceAddress, b.ServiceKey().Index, signer)
 		require.NoError(t, err)
 
 		// generate a list of transactions
@@ -69,7 +70,8 @@ func TestCollections(t *testing.T) {
 
 		// add all transactions to block
 		for _, tx := range transactions {
-			err = b.AddTransaction(*tx)
+			flowTransaction := *convert.SDKTransactionToFlow(*tx)
+			err = b.AddTransaction(flowTransaction)
 			require.NoError(t, err)
 		}
 
@@ -81,11 +83,11 @@ func TestCollections(t *testing.T) {
 
 		i := 0
 		for _, guarantee := range block.Payload.Guarantees {
-			collection, err := b.GetCollection(convert.FlowIdentifierToSDK(guarantee.ID()))
+			collection, err := b.GetCollectionByID(guarantee.ID())
 			require.NoError(t, err)
 
-			for _, txID := range collection.TransactionIDs {
-				assert.Equal(t, transactions[i].ID(), txID)
+			for _, txID := range collection.Transactions {
+				assert.Equal(t, transactions[i].ID().String(), txID.String())
 				i++
 			}
 		}

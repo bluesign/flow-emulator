@@ -20,8 +20,6 @@ package emulator
 
 import (
 	"fmt"
-
-	flowsdk "github.com/onflow/flow-go-sdk"
 	"github.com/onflow/flow-go-sdk/crypto"
 	"github.com/onflow/flow-go/access"
 	flowgo "github.com/onflow/flow-go/model/flow"
@@ -42,6 +40,30 @@ type BlockNotFoundByHeightError struct {
 	Height uint64
 }
 
+type InvalidArgumentError struct {
+	msg string
+}
+
+func (e InvalidArgumentError) Error() string {
+	return fmt.Sprintf("Invalid argument error: %s", e.msg)
+}
+
+func NewInvalidArgumentError(msg string) *InvalidArgumentError {
+	return &InvalidArgumentError{msg: msg}
+}
+
+type InternalError struct {
+	msg string
+}
+
+func (e InternalError) Error() string {
+	return fmt.Sprintf("Internal error: %s", e.msg)
+}
+
+func NewInternalError(msg string) *InternalError {
+	return &InternalError{msg: msg}
+}
+
 func (e *BlockNotFoundByHeightError) isNotFoundError()      {}
 func (e *BlockNotFoundByHeightError) isBlockNotFoundError() {}
 
@@ -51,7 +73,7 @@ func (e *BlockNotFoundByHeightError) Error() string {
 
 // A BlockNotFoundByIDError indicates that a block with the specified ID could not be found.
 type BlockNotFoundByIDError struct {
-	ID flowsdk.Identifier
+	ID flowgo.Identifier
 }
 
 func (e *BlockNotFoundByIDError) isNotFoundError()      {}
@@ -63,7 +85,7 @@ func (e *BlockNotFoundByIDError) Error() string {
 
 // A CollectionNotFoundError indicates that a collection could not be found.
 type CollectionNotFoundError struct {
-	ID flowsdk.Identifier
+	ID flowgo.Identifier
 }
 
 func (e *CollectionNotFoundError) isNotFoundError() {}
