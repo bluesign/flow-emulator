@@ -473,3 +473,35 @@ func dirSize(path string) (int64, error) {
 	})
 	return size, err
 }
+
+func TestDefaultKeyGenerator_Event(t *testing.T) {
+	type args struct {
+		blockHeight uint64
+		txIndex     uint32
+		eventIndex  uint32
+		eventType   flowgo.EventType
+	}
+	tests := []struct {
+		name string
+		args args
+		want []byte
+	}{
+		{
+			name: "Event key generation",
+			args: args{
+				blockHeight: 0,
+				txIndex:     0,
+				eventIndex:  0,
+				eventType:   flowgo.EventType("A.1654653399040a61.FlowToken"),
+			},
+			want: []byte("00000000000000000000000000000000-00000000000000000000000000000000-00000000000000000000000000000000-A.1654653399040a61.FlowToken"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &storage.DefaultKeyGenerator{}
+			assert.Equalf(t, tt.want, s.Event(tt.args.blockHeight, tt.args.txIndex, tt.args.eventIndex, tt.args.eventType), "Event(%v, %v, %v, %v)", tt.args.blockHeight, tt.args.txIndex, tt.args.eventIndex, tt.args.eventType)
+		})
+	}
+}

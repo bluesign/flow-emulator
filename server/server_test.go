@@ -16,6 +16,9 @@ func TestExecuteScript(t *testing.T) {
 	server := NewEmulatorServer(&logger, &Config{})
 	require.NotNil(t, server)
 
+	go server.Start()
+	defer server.Stop()
+
 	const code = `
       pub fun main(): String {
 	      return "Hello"
@@ -25,7 +28,6 @@ func TestExecuteScript(t *testing.T) {
 	require.NoError(t, err)
 
 	require.JSONEq(t, `{"type":"String","value":"Hello"}`, string(result))
-
 }
 
 func TestGetStorage(t *testing.T) {

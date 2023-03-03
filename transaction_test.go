@@ -30,6 +30,60 @@ import (
 	"github.com/onflow/flow-emulator/types"
 )
 
+func TestSubmitTransactionWithFees(t *testing.T) {
+
+	t.Parallel()
+
+	b, err := emulator.NewBlockchain(
+		emulator.WithStorageLimitEnabled(false),
+		emulator.WithTransactionFeesEnabled(true),
+	)
+	require.NoError(t, err)
+
+	account, err := b.GetAccount(b.ServiceKey().Address)
+	require.NoError(t, err)
+	preBalance := account.Balance
+
+	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b)
+
+	tx1 := flowsdk.NewTransaction().
+		SetScript([]byte(addTwoScript)).
+		SetGasLimit(flowgo.DefaultMaxTransactionGasLimit).
+		SetProposalKey(b.ServiceKey().Address, b.ServiceKey().Index, b.ServiceKey().SequenceNumber).
+		SetPayer(b.ServiceKey().Address).
+		AddAuthorizer(b.ServiceKey().Address)
+
+	signer, err := b.ServiceKey().Signer()
+	require.NoError(t, err)
+
+	err = tx1.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
+	require.NoError(t, err)
+
+	// Submit tx1
+	err = b.AddTransaction(*tx1)
+	assert.NoError(t, err)
+
+	// Execute tx1
+	result, err := b.ExecuteNextTransaction()
+	assert.NoError(t, err)
+	assertTransactionSucceeded(t, result)
+
+	_, err = b.CommitBlock()
+	assert.NoError(t, err)
+
+	// tx1 status becomes TransactionStatusSealed
+	tx1Result, err := b.GetTransactionResult(tx1.ID())
+	assert.NoError(t, err)
+	assert.Equal(t, flowsdk.TransactionStatusSealed, tx1Result.Status)
+
+	account, err = b.GetAccount(b.ServiceKey().Address)
+	require.NoError(t, err)
+	postBalance := account.Balance
+
+	require.Less(t, postBalance, preBalance)
+
+}
+
 func TestSubmitTransaction(t *testing.T) {
 
 	t.Parallel()
