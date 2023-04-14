@@ -1,8 +1,7 @@
-package tests_test
+package emulator
 
 import (
 	"fmt"
-	"github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	"github.com/onflow/cadence"
@@ -18,8 +17,8 @@ func TestExecuteScript(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -81,7 +80,7 @@ func TestExecuteScript_WithArguments(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain()
+		b, err := NewBlockchain()
 		require.NoError(t, err)
 
 		scriptWithArgs := `
@@ -103,7 +102,7 @@ func TestExecuteScript_WithArguments(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain()
+		b, err := NewBlockchain()
 		require.NoError(t, err)
 
 		scriptWithArgs := `
@@ -125,7 +124,7 @@ func TestExecuteScript_FlowServiceAccountBalance(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain()
+	b, err := NewBlockchain()
 	require.NoError(t, err)
 
 	code := fmt.Sprintf(
@@ -151,8 +150,8 @@ func TestInfiniteScript(t *testing.T) {
 	t.Parallel()
 
 	const limit = 1000
-	b, err := emulator.NewBlockchain(
-		emulator.WithScriptGasLimit(limit),
+	b, err := NewBlockchain(
+		WithScriptGasLimit(limit),
 	)
 	require.NoError(t, err)
 

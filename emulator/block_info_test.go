@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package tests_test
+package emulator
 
 import (
 	"fmt"
@@ -26,15 +26,13 @@ import (
 	flowgo "github.com/onflow/flow-go/model/flow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/onflow/flow-emulator/emulator"
 )
 
 func TestBlockInfo(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain()
+	b, err := NewBlockchain()
 	require.NoError(t, err)
 
 	block1, err := b.CommitBlock()

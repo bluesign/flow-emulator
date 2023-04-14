@@ -22,6 +22,8 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/onflow/flow-emulator/emulator"
+	convert "github.com/onflow/flow-emulator/utils/convert/sdk"
 	"strings"
 
 	"github.com/logrusorgru/aurora"
@@ -34,8 +36,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	emulator "github.com/onflow/flow-emulator"
-	convert "github.com/onflow/flow-emulator/convert/sdk"
 	"github.com/onflow/flow-emulator/types"
 )
 
@@ -61,11 +61,11 @@ func New(logger *zerolog.Logger, emulator Emulator) *Backend {
 	}
 }
 
-func (b *Backend) Ping(ctx context.Context) error {
+func (b *Backend) Ping(_ context.Context) error {
 	return nil
 }
 
-func (b *Backend) GetNetworkParameters(ctx context.Context) access.NetworkParameters {
+func (b *Backend) GetNetworkParameters(_ context.Context) access.NetworkParameters {
 	return access.NetworkParameters{
 		ChainID: flowgo.Emulator,
 	}
@@ -173,7 +173,7 @@ func (b *Backend) GetLatestBlock(
 
 // GetBlockByHeight gets a block by height.
 func (b *Backend) GetBlockByHeight(
-	ctx context.Context,
+	_ context.Context,
 	height uint64,
 ) (
 	*flowgo.Block,
@@ -244,7 +244,7 @@ func (b *Backend) GetCollectionByID(
 }
 
 // SendTransaction submits a transaction to the network.
-func (b *Backend) SendTransaction(ctx context.Context, tx sdk.Transaction) error {
+func (b *Backend) SendTransaction(_ context.Context, tx sdk.Transaction) error {
 	err := b.emulator.AddTransaction(tx)
 	if err != nil {
 		switch t := err.(type) {
@@ -287,7 +287,7 @@ func (b *Backend) SendTransaction(ctx context.Context, tx sdk.Transaction) error
 
 // GetTransaction gets a transaction by ID.
 func (b *Backend) GetTransaction(
-	ctx context.Context,
+	_ context.Context,
 	id sdk.Identifier,
 ) (*sdk.Transaction, error) {
 	tx, err := b.emulator.GetTransaction(id)
@@ -309,7 +309,7 @@ func (b *Backend) GetTransaction(
 
 // GetTransactionResult gets a transaction by ID.
 func (b *Backend) GetTransactionResult(
-	ctx context.Context,
+	_ context.Context,
 	id sdk.Identifier,
 ) (*sdk.TransactionResult, error) {
 	result, err := b.emulator.GetTransactionResult(id)
@@ -326,7 +326,7 @@ func (b *Backend) GetTransactionResult(
 
 // GetAccount returns an account by address at the latest sealed block.
 func (b *Backend) GetAccount(
-	ctx context.Context,
+	_ context.Context,
 	address sdk.Address,
 ) (*sdk.Account, error) {
 	b.logger.Debug().
@@ -343,7 +343,7 @@ func (b *Backend) GetAccount(
 
 // GetAccountAtLatestBlock returns an account by address at the latest sealed block.
 func (b *Backend) GetAccountAtLatestBlock(
-	ctx context.Context,
+	_ context.Context,
 	address sdk.Address,
 ) (*sdk.Account, error) {
 	b.logger.Debug().
@@ -373,7 +373,7 @@ func (b *Backend) getAccount(address sdk.Address) (*sdk.Account, error) {
 }
 
 func (b *Backend) GetAccountAtBlockHeight(
-	ctx context.Context,
+	_ context.Context,
 	address sdk.Address,
 	height uint64,
 ) (*sdk.Account, error) {
@@ -397,7 +397,7 @@ func (b *Backend) GetAccountAtBlockHeight(
 
 // ExecuteScriptAtLatestBlock executes a script at a the latest block
 func (b *Backend) ExecuteScriptAtLatestBlock(
-	ctx context.Context,
+	_ context.Context,
 	script []byte,
 	arguments [][]byte,
 ) ([]byte, error) {
@@ -413,7 +413,7 @@ func (b *Backend) ExecuteScriptAtLatestBlock(
 
 // ExecuteScriptAtBlockHeight executes a script at a specific block height
 func (b *Backend) ExecuteScriptAtBlockHeight(
-	ctx context.Context,
+	_ context.Context,
 	blockHeight uint64,
 	script []byte,
 	arguments [][]byte,
@@ -427,7 +427,7 @@ func (b *Backend) ExecuteScriptAtBlockHeight(
 
 // ExecuteScriptAtBlockID executes a script at a specific block ID
 func (b *Backend) ExecuteScriptAtBlockID(
-	ctx context.Context,
+	_ context.Context,
 	blockID sdk.Identifier,
 	script []byte,
 	arguments [][]byte,
@@ -446,7 +446,7 @@ func (b *Backend) ExecuteScriptAtBlockID(
 
 // GetEventsForHeightRange returns events matching a query.
 func (b *Backend) GetEventsForHeightRange(
-	ctx context.Context,
+	_ context.Context,
 	eventType string,
 	startHeight, endHeight uint64,
 ) ([]flowgo.BlockEvents, error) {
@@ -519,7 +519,7 @@ func (b *Backend) GetEventsForHeightRange(
 
 // GetEventsForBlockIDs returns events matching a set of block IDs.
 func (b *Backend) GetEventsForBlockIDs(
-	ctx context.Context,
+	_ context.Context,
 	eventType string,
 	blockIDs []sdk.Identifier,
 ) ([]flowgo.BlockEvents, error) {

@@ -19,10 +19,10 @@
 package unittest
 
 import (
+	convert "github.com/onflow/flow-emulator/utils/convert/sdk"
 	"github.com/onflow/flow-go-sdk/test"
 	flowgo "github.com/onflow/flow-go/model/flow"
 
-	convert "github.com/onflow/flow-emulator/convert/sdk"
 	"github.com/onflow/flow-emulator/types"
 )
 

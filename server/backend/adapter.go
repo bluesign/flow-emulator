@@ -20,11 +20,10 @@ package backend
 
 import (
 	"context"
+	convert "github.com/onflow/flow-emulator/utils/convert/sdk"
 
 	"github.com/onflow/flow-go/access"
 	flowgo "github.com/onflow/flow-go/model/flow"
-
-	convert "github.com/onflow/flow-emulator/convert/sdk"
 )
 
 var _ access.API = &Adapter{}

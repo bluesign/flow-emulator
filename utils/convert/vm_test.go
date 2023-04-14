@@ -19,14 +19,14 @@
 package convert_test
 
 import (
+	"github.com/onflow/flow-emulator/utils/convert"
+	sdkConvert "github.com/onflow/flow-emulator/utils/convert/sdk"
 	"testing"
 
 	"github.com/onflow/flow-go-sdk/test"
 	"github.com/onflow/flow-go/fvm"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/onflow/flow-emulator/convert"
-	sdkConvert "github.com/onflow/flow-emulator/convert/sdk"
 	flowgo "github.com/onflow/flow-go/model/flow"
 )
 

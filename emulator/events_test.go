@@ -1,8 +1,7 @@
-package tests_test
+package emulator
 
 import (
 	"fmt"
-	"github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	"github.com/onflow/cadence/runtime/common"
@@ -25,7 +24,7 @@ func TestEventEmitted(t *testing.T) {
 
 		// Emitting events in scripts is not supported
 
-		b, err := emulator.NewBlockchain()
+		b, err := NewBlockchain()
 		require.NoError(t, err)
 
 		script := []byte(`
@@ -46,8 +45,8 @@ func TestEventEmitted(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 

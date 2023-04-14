@@ -16,11 +16,10 @@
  * limitations under the License.
  */
 
-package tests_test
+package emulator
 
 import (
 	"fmt"
-	emulator2 "github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
@@ -33,8 +32,8 @@ func TestCommitBlock(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator2.NewBlockchain(
-		emulator2.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -114,7 +113,7 @@ func TestBlockView(t *testing.T) {
 
 	const nBlocks = 3
 
-	b, err := emulator2.NewBlockchain()
+	b, err := NewBlockchain()
 	require.NoError(t, err)
 
 	t.Run("genesis should have 0 view", func(t *testing.T) {
@@ -155,7 +154,7 @@ func TestBlockView(t *testing.T) {
 		block, err := b.GetBlockByHeight(height)
 		require.NoError(t, err)
 
-		maxView := height * emulator2.MaxViewIncrease
+		maxView := height * MaxViewIncrease
 		t.Run(fmt.Sprintf("block %d should have view <%d", height, maxView), func(t *testing.T) {
 			assert.Equal(t, height, block.Header.Height)
 			assert.LessOrEqual(t, block.Header.View, maxView)

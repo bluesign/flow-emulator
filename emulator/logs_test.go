@@ -1,7 +1,6 @@
-package tests_test
+package emulator
 
 import (
-	"github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +11,7 @@ func TestRuntimeLogs(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain()
+	b, err := NewBlockchain()
 	require.NoError(t, err)
 
 	script := []byte(`

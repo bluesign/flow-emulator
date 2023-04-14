@@ -1,8 +1,8 @@
-package tests_test
+package emulator
 
 import (
 	"fmt"
-	"github.com/onflow/flow-emulator/emulator"
+	convert "github.com/onflow/flow-emulator/utils/convert/sdk"
 	"os"
 	"testing"
 
@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	convert "github.com/onflow/flow-emulator/convert/sdk"
 	"github.com/onflow/flow-emulator/storage/sqlite"
 )
 
@@ -31,7 +30,7 @@ func TestInitialization(t *testing.T) {
 		require.Nil(t, err)
 		defer store.Close()
 
-		b, _ := emulator.NewBlockchain(emulator.WithStore(store))
+		b, _ := NewBlockchain(WithStore(store))
 
 		serviceAcct, err := b.GetAccount(flowsdk.ServiceAddress(flowsdk.Emulator))
 		require.NoError(t, err)
@@ -58,7 +57,7 @@ func TestInitialization(t *testing.T) {
 		require.Nil(t, err)
 		defer store.Close()
 
-		b, _ := emulator.NewBlockchain(emulator.WithStore(store), emulator.WithStorageLimitEnabled(false))
+		b, _ := NewBlockchain(WithStore(store), WithStorageLimitEnabled(false))
 
 		contracts := []templates.Contract{
 			{
@@ -122,7 +121,7 @@ func TestInitialization(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a new blockchain with the same store
-		b, _ = emulator.NewBlockchain(emulator.WithStore(store))
+		b, _ = NewBlockchain(WithStore(store))
 
 		t.Run("should be able to read blocks", func(t *testing.T) {
 			latestBlock, err := b.GetLatestBlock()

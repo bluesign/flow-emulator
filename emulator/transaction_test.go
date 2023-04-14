@@ -1,4 +1,4 @@
-package tests_test
+package emulator
 
 import (
 	"bufio"
@@ -6,14 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/onflow/flow-emulator/emulator"
+	convert "github.com/onflow/flow-emulator/utils/convert/sdk"
 	"io"
 	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
-
-	convert "github.com/onflow/flow-emulator/convert/sdk"
 
 	"github.com/onflow/cadence"
 	"github.com/onflow/cadence/runtime/common"
@@ -34,8 +32,8 @@ func TestSubmitTransaction(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -82,7 +80,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain()
+		b, err := NewBlockchain()
 		require.NoError(t, err)
 
 		// Create empty transaction (no required fields)
@@ -96,14 +94,14 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		// Submit tx
 		err = b.AddTransaction(*tx)
-		assert.IsType(t, err, &emulator.IncompleteTransactionError{})
+		assert.IsType(t, err, &IncompleteTransactionError{})
 	})
 
 	t.Run("Missing script", func(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain()
+		b, err := NewBlockchain()
 		require.NoError(t, err)
 
 		// Create transaction with no Script field
@@ -119,14 +117,14 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 		require.NoError(t, err)
 
 		err = b.AddTransaction(*tx)
-		assert.IsType(t, err, &emulator.IncompleteTransactionError{})
+		assert.IsType(t, err, &IncompleteTransactionError{})
 	})
 
 	t.Run("Missing script", func(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain()
+		b, err := NewBlockchain()
 		require.NoError(t, err)
 
 		// Create transaction with invalid Script field
@@ -144,7 +142,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		// Submit tx
 		err = b.AddTransaction(*tx)
-		assert.IsType(t, &emulator.InvalidTransactionScriptError{}, err)
+		assert.IsType(t, &InvalidTransactionScriptError{}, err)
 	})
 
 	t.Run("Missing gas limit", func(t *testing.T) {
@@ -153,8 +151,8 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		t.Skip("TODO: transaction validation")
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -174,15 +172,15 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		// Submit tx
 		err = b.AddTransaction(*tx)
-		assert.IsType(t, &emulator.IncompleteTransactionError{}, err)
+		assert.IsType(t, &IncompleteTransactionError{}, err)
 	})
 
 	t.Run("Missing payer account", func(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -202,15 +200,15 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		// Submit tx
 		err = b.AddTransaction(*tx)
-		assert.IsType(t, err, &emulator.IncompleteTransactionError{})
+		assert.IsType(t, err, &IncompleteTransactionError{})
 	})
 
 	t.Run("Missing proposal key", func(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -231,15 +229,15 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		// Submit tx
 		err = b.AddTransaction(*tx)
-		assert.IsType(t, &emulator.IncompleteTransactionError{}, err)
+		assert.IsType(t, &IncompleteTransactionError{}, err)
 	})
 
 	t.Run("Invalid sequence number", func(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -281,9 +279,9 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithTransactionExpiry(expiry),
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithTransactionExpiry(expiry),
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -302,16 +300,16 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 		require.NoError(t, err)
 
 		err = b.AddTransaction(*tx)
-		assert.IsType(t, &emulator.IncompleteTransactionError{}, err)
+		assert.IsType(t, &IncompleteTransactionError{}, err)
 	})
 
 	t.Run("Expired transaction", func(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithTransactionExpiry(expiry),
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithTransactionExpiry(expiry),
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -340,15 +338,15 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 		require.NoError(t, err)
 
 		err = b.AddTransaction(*tx)
-		assert.IsType(t, &emulator.ExpiredTransactionError{}, err)
+		assert.IsType(t, &ExpiredTransactionError{}, err)
 	})
 
 	t.Run("Invalid hash algorithm proposer", func(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -383,8 +381,8 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -445,8 +443,8 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -498,8 +496,8 @@ func TestSubmitTransaction_Duplicate(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -531,14 +529,14 @@ func TestSubmitTransaction_Duplicate(t *testing.T) {
 
 	// Submit same tx again (errors)
 	err = b.AddTransaction(*tx)
-	assert.IsType(t, err, &emulator.DuplicateTransactionError{})
+	assert.IsType(t, err, &DuplicateTransactionError{})
 }
 
 func TestSubmitTransaction_Reverted(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain()
+	b, err := NewBlockchain()
 	require.NoError(t, err)
 
 	tx := flowsdk.NewTransaction().
@@ -576,8 +574,8 @@ func TestSubmitTransaction_Authorizers(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -668,8 +666,8 @@ func TestSubmitTransaction_EnvelopeSignature(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -701,7 +699,7 @@ func TestSubmitTransaction_EnvelopeSignature(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain()
+		b, err := NewBlockchain()
 		require.NoError(t, err)
 
 		addresses := flowsdk.NewAddressGenerator(flowsdk.Emulator)
@@ -750,7 +748,7 @@ func TestSubmitTransaction_EnvelopeSignature(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain()
+		b, err := NewBlockchain()
 		require.NoError(t, err)
 
 		addresses := flowsdk.NewAddressGenerator(flowsdk.Emulator)
@@ -798,8 +796,8 @@ func TestSubmitTransaction_EnvelopeSignature(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -834,8 +832,8 @@ func TestSubmitTransaction_EnvelopeSignature(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -901,8 +899,8 @@ func TestSubmitTransaction_PayloadSignatures(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -945,8 +943,8 @@ func TestSubmitTransaction_PayloadSignatures(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -1155,7 +1153,7 @@ func TestSubmitTransaction_Arguments(t *testing.T) {
 		t.Run(tt.argType.ID(), func(t *testing.T) {
 			t.Parallel()
 
-			b, err := emulator.NewBlockchain()
+			b, err := NewBlockchain()
 			require.NoError(t, err)
 
 			tx := flowsdk.NewTransaction().
@@ -1185,7 +1183,7 @@ func TestSubmitTransaction_Arguments(t *testing.T) {
 	}
 
 	t.Run("Log", func(t *testing.T) {
-		b, err := emulator.NewBlockchain()
+		b, err := NewBlockchain()
 		require.NoError(t, err)
 
 		script := []byte(`
@@ -1233,8 +1231,8 @@ func TestSubmitTransaction_ProposerSequence(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -1279,8 +1277,8 @@ func TestSubmitTransaction_ProposerSequence(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -1319,7 +1317,7 @@ func TestSubmitTransaction_ProposerSequence(t *testing.T) {
 		assert.Equal(t, prevSeq+1, b.ServiceKey().SequenceNumber)
 		assert.Equal(t, flowsdk.TransactionStatusSealed, tx1Result.Status)
 		assert.Len(t, tx1Result.Events, 0)
-		assert.IsType(t, &emulator.ExecutionError{}, tx1Result.Error)
+		assert.IsType(t, &ExecutionError{}, tx1Result.Error)
 	})
 }
 
@@ -1327,8 +1325,8 @@ func TestGetTransaction(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -1357,7 +1355,7 @@ func TestGetTransaction(t *testing.T) {
 	t.Run("Nonexistent", func(t *testing.T) {
 		_, err := b.GetTransaction(flowsdk.EmptyID)
 		if assert.Error(t, err) {
-			assert.IsType(t, &emulator.TransactionNotFoundError{}, err)
+			assert.IsType(t, &TransactionNotFoundError{}, err)
 		}
 	})
 
@@ -1373,8 +1371,8 @@ func TestGetTransactionResult(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -1462,8 +1460,8 @@ func TestHelloWorld_NewAccount(t *testing.T) {
 
 	accountKeys := test.AccountKeyGenerator()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -1560,8 +1558,8 @@ func TestHelloWorld_UpdateAccount(t *testing.T) {
 
 	accountKeys := test.AccountKeyGenerator()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -1685,9 +1683,9 @@ func TestInfiniteTransaction(t *testing.T) {
 
 	const limit = 1000
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
-		emulator.WithTransactionMaxGasLimit(limit),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
+		WithTransactionMaxGasLimit(limit),
 	)
 	require.NoError(t, err)
 
@@ -1742,9 +1740,9 @@ func TestSubmitTransactionWithCustomLogger(t *testing.T) {
 	memlogWrite := io.Writer(&memlog)
 	logger := zerolog.New(memlogWrite).Level(zerolog.DebugLevel)
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
-		emulator.WithLogger(logger),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
+		WithLogger(logger),
 	)
 	require.NoError(t, err)
 

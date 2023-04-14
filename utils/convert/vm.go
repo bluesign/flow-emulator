@@ -19,10 +19,10 @@
 package convert
 
 import (
+	sdkConvert "github.com/onflow/flow-emulator/utils/convert/sdk"
 	"github.com/onflow/flow-go/fvm"
 	fvmerrors "github.com/onflow/flow-go/fvm/errors"
 
-	sdkConvert "github.com/onflow/flow-emulator/convert/sdk"
 	"github.com/onflow/flow-emulator/types"
 )
 

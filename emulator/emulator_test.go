@@ -16,11 +16,10 @@
  * limitations under the License.
  */
 
-package tests_test
+package emulator
 
 import (
 	"fmt"
-	"github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	"github.com/onflow/cadence"
@@ -80,7 +79,7 @@ func generateAddTwoToCounterScript(counterAddress flowsdk.Address) string {
 	)
 }
 
-func deployAndGenerateAddTwoScript(t *testing.T, b *emulator.Blockchain) (string, flowsdk.Address) {
+func deployAndGenerateAddTwoScript(t *testing.T, b *Blockchain) (string, flowsdk.Address) {
 	contracts := []templates.Contract{
 		{
 			Name:   "Counting",
@@ -117,7 +116,7 @@ func assertTransactionSucceeded(t *testing.T, result *types.TransactionResult) {
 	}
 }
 
-func lastCreatedAccount(b *emulator.Blockchain, result *types.TransactionResult) (*flowsdk.Account, error) {
+func lastCreatedAccount(b *Blockchain, result *types.TransactionResult) (*flowsdk.Account, error) {
 	address, err := lastCreatedAccountAddress(result)
 	if err != nil {
 		return nil, err

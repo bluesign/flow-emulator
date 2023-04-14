@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/onflow/flow-emulator/emulator"
 	"math/rand"
 	"testing"
 
@@ -38,7 +39,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	emulator "github.com/onflow/flow-emulator"
 	"github.com/onflow/flow-emulator/server/backend"
 	"github.com/onflow/flow-emulator/server/backend/mocks"
 	"github.com/onflow/flow-emulator/types"

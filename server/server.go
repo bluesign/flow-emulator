@@ -20,6 +20,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/onflow/flow-emulator/emulator"
 	"os"
 	"time"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/psiemens/graceland"
 	"github.com/rs/zerolog"
 
-	emulator "github.com/onflow/flow-emulator"
 	"github.com/onflow/flow-emulator/server/backend"
 	"github.com/onflow/flow-emulator/server/debugger"
 	"github.com/onflow/flow-emulator/storage"

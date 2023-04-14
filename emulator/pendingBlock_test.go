@@ -1,29 +1,26 @@
-package emulator_test
+package emulator
 
 import (
-	emulator2 "github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
 	flowgo "github.com/onflow/flow-go/model/flow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	emulator "github.com/onflow/flow-emulator"
 )
 
 func setupPendingBlockTests(t *testing.T) (
-	*emulator2.Blockchain,
+	*Blockchain,
 	*flowsdk.Transaction,
 	*flowsdk.Transaction,
 	*flowsdk.Transaction,
 ) {
-	b, err := emulator2.NewBlockchain(
-		emulator2.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
-	addTwoScript, _ := emulator2.deployAndGenerateAddTwoScript(t, b)
+	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -99,7 +96,7 @@ func TestPendingBlockBeforeExecution(t *testing.T) {
 
 		// Add tx1 again
 		err = b.AddTransaction(*tx)
-		assert.IsType(t, &emulator.DuplicateTransactionError{}, err)
+		assert.IsType(t, &DuplicateTransactionError{}, err)
 
 		err = b.ResetPendingBlock()
 		assert.NoError(t, err)
@@ -117,7 +114,7 @@ func TestPendingBlockBeforeExecution(t *testing.T) {
 
 		// Attempt to commit block before execution begins
 		_, err = b.CommitBlock()
-		assert.IsType(t, &emulator.PendingBlockCommitBeforeExecutionError{}, err)
+		assert.IsType(t, &PendingBlockCommitBeforeExecutionError{}, err)
 
 		err = b.ResetPendingBlock()
 		assert.NoError(t, err)
@@ -145,7 +142,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		emulator2.assertTransactionSucceeded(t, result)
+		assertTransactionSucceeded(t, result)
 
 		// Execute invalid script tx (reverts)
 		result, err = b.ExecuteNextTransaction()
@@ -204,7 +201,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 first (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		emulator2.assertTransactionSucceeded(t, result)
+		assertTransactionSucceeded(t, result)
 
 		// Execute rest of tx in pending block (tx2, invalid)
 		results, err := b.ExecuteBlock()
@@ -235,11 +232,11 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 first (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		emulator2.assertTransactionSucceeded(t, result)
+		assertTransactionSucceeded(t, result)
 
 		// Attempt to add tx2 to pending block after execution begins
 		err = b.AddTransaction(*tx2)
-		assert.IsType(t, &emulator.PendingBlockMidExecutionError{}, err)
+		assert.IsType(t, &PendingBlockMidExecutionError{}, err)
 
 		err = b.ResetPendingBlock()
 		assert.NoError(t, err)
@@ -262,11 +259,11 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 first (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		emulator2.assertTransactionSucceeded(t, result)
+		assertTransactionSucceeded(t, result)
 
 		// Attempt to commit block before execution finishes
 		_, err = b.CommitBlock()
-		assert.IsType(t, &emulator.PendingBlockMidExecutionError{}, err)
+		assert.IsType(t, &PendingBlockMidExecutionError{}, err)
 
 		err = b.ResetPendingBlock()
 		assert.NoError(t, err)
@@ -285,15 +282,15 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		emulator2.assertTransactionSucceeded(t, result)
+		assertTransactionSucceeded(t, result)
 
 		// Attempt to execute nonexistent next tx (fails)
 		_, err = b.ExecuteNextTransaction()
-		assert.IsType(t, &emulator.PendingBlockTransactionsExhaustedError{}, err)
+		assert.IsType(t, &PendingBlockTransactionsExhaustedError{}, err)
 
 		// Attempt to execute rest of block tx (fails)
 		_, err = b.ExecuteBlock()
-		assert.IsType(t, &emulator.PendingBlockTransactionsExhaustedError{}, err)
+		assert.IsType(t, &PendingBlockTransactionsExhaustedError{}, err)
 
 		err = b.ResetPendingBlock()
 		assert.NoError(t, err)
@@ -304,12 +301,12 @@ func TestPendingBlockCommit(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator2.NewBlockchain(
-		emulator2.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
-	addTwoScript, _ := emulator2.deployAndGenerateAddTwoScript(t, b)
+	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b)
 
 	t.Run("CommitBlock", func(t *testing.T) {
 		tx1 := flowsdk.NewTransaction().
@@ -335,7 +332,7 @@ func TestPendingBlockCommit(t *testing.T) {
 		// Execute tx1 (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		emulator2.assertTransactionSucceeded(t, result)
+		assertTransactionSucceeded(t, result)
 
 		// Commit pending block
 		block, err := b.CommitBlock()

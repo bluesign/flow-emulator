@@ -16,11 +16,10 @@
  * limitations under the License.
  */
 
-package tests_test
+package emulator
 
 import (
 	"fmt"
-	"github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
@@ -43,9 +42,9 @@ func TestGetAccount(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithSimpleAddresses(),
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithSimpleAddresses(),
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -59,9 +58,9 @@ func TestGetAccount(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithSimpleAddresses(),
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithSimpleAddresses(),
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -114,9 +113,9 @@ func TestCreateAccount(t *testing.T) {
 	accountKeys := test.AccountKeyGenerator()
 
 	t.Run("Simple addresses", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithSimpleAddresses(),
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithSimpleAddresses(),
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -160,8 +159,8 @@ func TestCreateAccount(t *testing.T) {
 	})
 
 	t.Run("Single public keys", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -204,8 +203,8 @@ func TestCreateAccount(t *testing.T) {
 	})
 
 	t.Run("Multiple public keys", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -250,8 +249,8 @@ func TestCreateAccount(t *testing.T) {
 	})
 
 	t.Run("Public keys and contract", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -308,8 +307,8 @@ func TestCreateAccount(t *testing.T) {
 	})
 
 	t.Run("Public keys and two contracts", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -384,8 +383,8 @@ func TestCreateAccount(t *testing.T) {
 	})
 
 	t.Run("Code and no keys", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -437,8 +436,8 @@ func TestCreateAccount(t *testing.T) {
 	})
 
 	t.Run("Event emitted", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -499,8 +498,8 @@ func TestCreateAccount(t *testing.T) {
 	})
 
 	t.Run("Invalid hash algorithm", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -534,8 +533,8 @@ func TestCreateAccount(t *testing.T) {
 	})
 
 	t.Run("Invalid code", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -573,8 +572,8 @@ func TestCreateAccount(t *testing.T) {
 	})
 
 	t.Run("Invalid contract name", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -619,8 +618,8 @@ func TestAddAccountKey(t *testing.T) {
 	accountKeys := test.AccountKeyGenerator()
 
 	t.Run("Valid key", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -675,8 +674,8 @@ func TestAddAccountKey(t *testing.T) {
 	})
 
 	t.Run("Invalid hash algorithm", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -709,8 +708,8 @@ func TestRemoveAccountKey(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -875,8 +874,8 @@ func TestUpdateAccountCode(t *testing.T) {
 	accountKeyB, signerB := accountKeys.NewWithSigner()
 
 	t.Run("Valid signature", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -941,8 +940,8 @@ func TestUpdateAccountCode(t *testing.T) {
 	})
 
 	t.Run("Invalid signature", func(t *testing.T) {
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
@@ -1005,8 +1004,8 @@ func TestImportAccountCode(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
@@ -1064,8 +1063,8 @@ func TestAccountAccess(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := NewBlockchain(
+		WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 

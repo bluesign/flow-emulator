@@ -1,15 +1,13 @@
-package tests_test
+package emulator
 
 import (
-	"github.com/onflow/flow-emulator/emulator"
+	convert "github.com/onflow/flow-emulator/utils/convert/sdk"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
 	flowgo "github.com/onflow/flow-go/model/flow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	convert "github.com/onflow/flow-emulator/convert/sdk"
 )
 
 func TestCollections(t *testing.T) {
@@ -20,7 +18,7 @@ func TestCollections(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain()
+		b, err := NewBlockchain()
 		require.NoError(t, err)
 
 		block, err := b.CommitBlock()
@@ -34,8 +32,8 @@ func TestCollections(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := emulator.NewBlockchain(
-			emulator.WithStorageLimitEnabled(false),
+		b, err := NewBlockchain(
+			WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 

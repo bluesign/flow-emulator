@@ -14,6 +14,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	convert2 "github.com/onflow/flow-emulator/utils/convert"
+	sdkconvert "github.com/onflow/flow-emulator/utils/convert/sdk"
 	"sync"
 	"time"
 
@@ -37,8 +39,6 @@ import (
 	flowgo "github.com/onflow/flow-go/model/flow"
 	"github.com/rs/zerolog"
 
-	"github.com/onflow/flow-emulator/convert"
-	sdkconvert "github.com/onflow/flow-emulator/convert/sdk"
 	"github.com/onflow/flow-emulator/storage"
 	"github.com/onflow/flow-emulator/storage/util"
 	"github.com/onflow/flow-emulator/types"
@@ -1127,7 +1127,7 @@ func (b *Blockchain) executeNextTransaction(ctx fvm.Context) (*types.Transaction
 		return nil, err
 	}
 
-	tr, err := convert.VMTransactionResultToEmulator(tp)
+	tr, err := convert2.VMTransactionResultToEmulator(tp)
 	if err != nil {
 		// fail fast if fatal error occurs
 		return nil, err
@@ -1370,7 +1370,7 @@ func (b *Blockchain) ExecuteScriptAtBlock(
 	if output.Err == nil {
 		convertedValue = output.Value
 	} else {
-		scriptError = convert.VMErrorToEmulator(output.Err)
+		scriptError = convert2.VMErrorToEmulator(output.Err)
 	}
 
 	return &types.ScriptResult{
@@ -1461,7 +1461,7 @@ func convertToSealedResults(
 	output := make(map[flowgo.Identifier]*types.StorableTransactionResult)
 
 	for id, result := range results {
-		temp, err := convert.ToStorableResult(result.Transaction)
+		temp, err := convert2.ToStorableResult(result.Transaction)
 		if err != nil {
 			return nil, err
 		}

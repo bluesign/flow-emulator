@@ -9,7 +9,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	interpreter "github.com/onflow/cadence/runtime/interpreter"
-	emulator "github.com/onflow/flow-emulator"
+	emulator "github.com/onflow/flow-emulator/emulator"
 	types "github.com/onflow/flow-emulator/types"
 	flow "github.com/onflow/flow-go-sdk"
 	flow0 "github.com/onflow/flow-go/model/flow"

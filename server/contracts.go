@@ -2,8 +2,8 @@ package server
 
 import (
 	"fmt"
+	"github.com/onflow/flow-emulator/emulator"
 
-	emulator "github.com/onflow/flow-emulator"
 	flowsdk "github.com/onflow/flow-go-sdk"
 	"github.com/onflow/flow-go-sdk/templates"
 	"github.com/onflow/flow-go/fvm"
