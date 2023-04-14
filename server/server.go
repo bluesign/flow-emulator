@@ -20,7 +20,6 @@ package server
 
 import (
 	"fmt"
-	"github.com/onflow/flow-emulator/emulator"
 	"os"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/psiemens/graceland"
 	"github.com/rs/zerolog"
 
+	"github.com/onflow/flow-emulator/emulator"
 	"github.com/onflow/flow-emulator/server/backend"
 	"github.com/onflow/flow-emulator/server/debugger"
 	"github.com/onflow/flow-emulator/storage"
@@ -145,7 +145,7 @@ func NewEmulatorServer(logger *zerolog.Logger, conf *Config) *EmulatorServer {
 		return nil
 	}
 
-	blockchain, err := configureBlockchain(conf, store)
+	blockchain, err := configureEmulatedBlockchain(conf, store)
 	if err != nil {
 		logger.Err(err).Msg("❗  Failed to configure emulated blockchain")
 		return nil
@@ -176,7 +176,11 @@ func NewEmulatorServer(logger *zerolog.Logger, conf *Config) *EmulatorServer {
 		}
 	}
 
-	be := configureBackend(logger, conf, blockchain)
+	//configure backend
+	be := backend.New(logger, blockchain)
+	if conf.BlockTime == 0 {
+		be.EnableAutoMine()
+	}
 
 	livenessTicker := NewLivenessTicker(conf.LivenessCheckTolerance)
 	grpcServer := NewGRPCServer(logger, be, blockchain.GetChain(), conf.Host, conf.GRPCPort, conf.GRPCDebug)
@@ -333,7 +337,7 @@ func configureStorage(logger *zerolog.Logger, conf *Config) (storageProvider sto
 	return storageProvider, err
 }
 
-func configureBlockchain(conf *Config, store storage.Store) (*emulator.Blockchain, error) {
+func configureEmulatedBlockchain(conf *Config, store storage.Store) (*emulator.Blockchain, error) {
 	options := []emulator.Option{
 		emulator.WithStore(store),
 		emulator.WithGenesisTokenSupply(conf.GenesisTokenSupply),
@@ -346,13 +350,7 @@ func configureBlockchain(conf *Config, store storage.Store) (*emulator.Blockchai
 		emulator.WithTransactionFeesEnabled(conf.TransactionFeesEnabled),
 		emulator.WithChainID(conf.ChainID),
 		emulator.WithContractRemovalEnabled(conf.ContractRemovalEnabled),
-	}
-
-	if conf.SkipTransactionValidation {
-		options = append(
-			options,
-			emulator.WithTransactionValidationEnabled(false),
-		)
+		emulator.WithTransactionValidationEnabled(!conf.SkipTransactionValidation),
 	}
 
 	if conf.SimpleAddressesEnabled {
@@ -380,16 +378,6 @@ func configureBlockchain(conf *Config, store storage.Store) (*emulator.Blockchai
 	}
 
 	return blockchain, nil
-}
-
-func configureBackend(logger *zerolog.Logger, conf *Config, blockchain *emulator.Blockchain) *backend.Backend {
-	b := backend.New(logger, blockchain)
-
-	if conf.BlockTime == 0 {
-		b.EnableAutoMine()
-	}
-
-	return b
 }
 
 func sanitizeConfig(conf *Config) *Config {
