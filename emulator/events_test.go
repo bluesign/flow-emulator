@@ -1,7 +1,8 @@
-package emulator_test
+package tests_test
 
 import (
 	"fmt"
+	"github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	"github.com/onflow/cadence/runtime/common"
@@ -12,8 +13,6 @@ import (
 
 	"github.com/onflow/cadence"
 	flowsdk "github.com/onflow/flow-go-sdk"
-
-	emulator "github.com/onflow/flow-emulator"
 )
 
 func TestEventEmitted(t *testing.T) {

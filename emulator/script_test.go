@@ -1,7 +1,8 @@
-package emulator_test
+package tests_test
 
 import (
 	"fmt"
+	"github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	"github.com/onflow/cadence"
@@ -11,8 +12,6 @@ import (
 	flowgo "github.com/onflow/flow-go/model/flow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	emulator "github.com/onflow/flow-emulator"
 )
 
 func TestExecuteScript(t *testing.T) {

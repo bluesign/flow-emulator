@@ -1,4 +1,4 @@
-package emulator_test
+package tests_test
 
 import (
 	"bufio"
@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/onflow/flow-emulator/emulator"
 	"io"
 	"strings"
 	"testing"
@@ -26,7 +27,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	emulator "github.com/onflow/flow-emulator"
 	"github.com/onflow/flow-emulator/types"
 )
 

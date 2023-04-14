@@ -15,9 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package emulator
+package tests
 
 import (
+	"github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
@@ -31,9 +32,9 @@ func TestStorageTransaction(t *testing.T) {
 
 	const limit = 1000
 
-	b, err := NewBlockchain(
-		WithStorageLimitEnabled(false),
-		WithTransactionMaxGasLimit(limit),
+	b, err := emulator.NewBlockchain(
+		emulator.WithStorageLimitEnabled(false),
+		emulator.WithTransactionMaxGasLimit(limit),
 	)
 	require.NoError(t, err)
 

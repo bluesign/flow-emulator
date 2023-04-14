@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package emulator_test
+package tests_test
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	emulator "github.com/onflow/flow-emulator"
+	"github.com/onflow/flow-emulator/emulator"
 )
 
 func TestBlockInfo(t *testing.T) {

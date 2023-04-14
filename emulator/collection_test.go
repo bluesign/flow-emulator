@@ -1,6 +1,7 @@
-package emulator_test
+package tests_test
 
 import (
+	"github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
@@ -8,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	emulator "github.com/onflow/flow-emulator"
 	convert "github.com/onflow/flow-emulator/convert/sdk"
 )
 

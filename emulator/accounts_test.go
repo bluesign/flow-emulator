@@ -16,10 +16,11 @@
  * limitations under the License.
  */
 
-package emulator_test
+package tests_test
 
 import (
 	"fmt"
+	"github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
@@ -30,8 +31,6 @@ import (
 	flowgo "github.com/onflow/flow-go/model/flow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	emulator "github.com/onflow/flow-emulator"
 )
 
 const testContract = "pub contract Test {}"

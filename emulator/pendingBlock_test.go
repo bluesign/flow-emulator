@@ -1,6 +1,7 @@
 package emulator_test
 
 import (
+	emulator2 "github.com/onflow/flow-emulator/emulator"
 	"testing"
 
 	flowsdk "github.com/onflow/flow-go-sdk"
@@ -12,17 +13,17 @@ import (
 )
 
 func setupPendingBlockTests(t *testing.T) (
-	*emulator.Blockchain,
+	*emulator2.Blockchain,
 	*flowsdk.Transaction,
 	*flowsdk.Transaction,
 	*flowsdk.Transaction,
 ) {
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := emulator2.NewBlockchain(
+		emulator2.WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b)
+	addTwoScript, _ := emulator2.deployAndGenerateAddTwoScript(t, b)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -144,7 +145,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		emulator2.assertTransactionSucceeded(t, result)
 
 		// Execute invalid script tx (reverts)
 		result, err = b.ExecuteNextTransaction()
@@ -203,7 +204,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 first (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		emulator2.assertTransactionSucceeded(t, result)
 
 		// Execute rest of tx in pending block (tx2, invalid)
 		results, err := b.ExecuteBlock()
@@ -234,7 +235,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 first (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		emulator2.assertTransactionSucceeded(t, result)
 
 		// Attempt to add tx2 to pending block after execution begins
 		err = b.AddTransaction(*tx2)
@@ -261,7 +262,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 first (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		emulator2.assertTransactionSucceeded(t, result)
 
 		// Attempt to commit block before execution finishes
 		_, err = b.CommitBlock()
@@ -284,7 +285,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		emulator2.assertTransactionSucceeded(t, result)
 
 		// Attempt to execute nonexistent next tx (fails)
 		_, err = b.ExecuteNextTransaction()
@@ -303,12 +304,12 @@ func TestPendingBlockCommit(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := emulator.NewBlockchain(
-		emulator.WithStorageLimitEnabled(false),
+	b, err := emulator2.NewBlockchain(
+		emulator2.WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b)
+	addTwoScript, _ := emulator2.deployAndGenerateAddTwoScript(t, b)
 
 	t.Run("CommitBlock", func(t *testing.T) {
 		tx1 := flowsdk.NewTransaction().
@@ -334,7 +335,7 @@ func TestPendingBlockCommit(t *testing.T) {
 		// Execute tx1 (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		emulator2.assertTransactionSucceeded(t, result)
 
 		// Commit pending block
 		block, err := b.CommitBlock()
