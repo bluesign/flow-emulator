@@ -64,6 +64,61 @@ func TestGetAccount(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.Equal(t, uint64(0), acc.Keys[0].SequenceNumber)
+
+	})
+
+	t.Run("Get account at latest block by index", func(t *testing.T) {
+
+		t.Parallel()
+		b, adapter := setupAccountTests(t)
+
+		acc, err := adapter.GetAccount(context.Background(), b.ServiceKey().Address)
+		assert.NoError(t, err)
+
+		assert.Equal(t, uint64(0), acc.Keys[0].SequenceNumber)
+
+		flowAccount, err := b.GetAccountByIndex(1) //service account
+		assert.NoError(t, err)
+
+		assert.Equal(t, uint64(0), flowAccount.Keys[0].SeqNumber)
+		assert.Equal(t, acc.Address.String(), flowAccount.Address.String())
+
+	})
+
+	t.Run("Get account (unsafe) at latest block by index", func(t *testing.T) {
+
+		t.Parallel()
+		b, adapter := setupAccountTests(t)
+
+		acc, err := adapter.GetAccount(context.Background(), b.ServiceKey().Address)
+		assert.NoError(t, err)
+
+		assert.Equal(t, uint64(0), acc.Keys[0].SequenceNumber)
+
+		flowAccount, err := b.GetAccountUnsafe(flowgo.Address(acc.Address))
+		assert.NoError(t, err)
+
+		assert.Equal(t, uint64(0), flowAccount.Keys[0].SeqNumber)
+		assert.Equal(t, acc.Address.String(), flowAccount.Address.String())
+
+	})
+
+	t.Run("Get account at latest block height", func(t *testing.T) {
+
+		t.Parallel()
+		b, adapter := setupAccountTests(t)
+
+		acc, err := adapter.GetAccount(context.Background(), b.ServiceKey().Address)
+		assert.NoError(t, err)
+
+		assert.Equal(t, uint64(0), acc.Keys[0].SequenceNumber)
+
+		flowAccount, err := b.GetAccountByIndex(1) //service account
+		assert.NoError(t, err)
+
+		assert.Equal(t, uint64(0), flowAccount.Keys[0].SeqNumber)
+		assert.Equal(t, acc.Address.String(), flowAccount.Address.String())
+
 	})
 
 	t.Run("Get account at specified block height", func(t *testing.T) {

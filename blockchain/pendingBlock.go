@@ -68,11 +68,6 @@ func (b *pendingBlock) ID() flowgo.Identifier {
 	return b.Block().ID()
 }
 
-// Height returns the number of the pending block.
-func (b *pendingBlock) Height() uint64 {
-	return b.height
-}
-
 // Block returns the block information for the pending block.
 func (b *pendingBlock) Block() *flowgo.Block {
 	collections := b.Collections()
@@ -106,7 +101,7 @@ func (b *pendingBlock) Collections() []*flowgo.LightCollection {
 
 	// TODO: remove once SDK models are removed
 	for i, transactionID := range b.transactionIDs {
-		transactionIDs[i] = flowgo.Identifier(transactionID)
+		transactionIDs[i] = transactionID
 	}
 
 	collection := flowgo.LightCollection{Transactions: transactionIDs}

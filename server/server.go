@@ -20,7 +20,7 @@ package server
 
 import (
 	"fmt"
-	blockchain "github.com/onflow/flow-emulator/blockchain"
+	"github.com/onflow/flow-emulator/blockchain"
 	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/onflow/flow-emulator/blockchain/contracts"
 	"github.com/onflow/flow-emulator/server/access"
@@ -144,7 +144,7 @@ type listener interface {
 func NewEmulatorServer(logger *zerolog.Logger, conf *Config) *EmulatorServer {
 	conf = sanitizeConfig(conf)
 
-	store, err := configureStorage(logger, conf)
+	store, err := configureStorage(conf)
 	if err != nil {
 		logger.Error().Err(err).Msg("❗  Failed to configure storage")
 		return nil
@@ -208,6 +208,9 @@ func NewEmulatorServer(logger *zerolog.Logger, conf *Config) *EmulatorServer {
 	// only create blocks ticker if block time > 0
 	if conf.BlockTime > 0 {
 		server.blocks = blockchain.NewBlocksTicker(emulatedBlockchain, conf.BlockTime)
+		emulatedBlockchain.DisableAutoMine()
+	} else {
+		emulatedBlockchain.EnableAutoMine()
 	}
 
 	return server
@@ -294,7 +297,7 @@ func (s *EmulatorServer) Stop() {
 	s.logger.Info().Msg("🛑  Server stopped")
 }
 
-func configureStorage(logger *zerolog.Logger, conf *Config) (storageProvider storage.Store, err error) {
+func configureStorage(conf *Config) (storageProvider storage.Store, err error) {
 
 	if conf.RedisURL != "" {
 		storageProvider, err = util.NewRedisStorage(conf.RedisURL)
@@ -387,12 +390,12 @@ func configureBlockchain(logger *zerolog.Logger, conf *Config, store storage.Sto
 		)
 	}
 
-	blockchain, err := blockchain.NewBlockchain(options...)
+	emulatedBlockchain, err := blockchain.NewBlockchain(options...)
 	if err != nil {
 		return nil, err
 	}
 
-	return blockchain, nil
+	return emulatedBlockchain, nil
 }
 
 func sanitizeConfig(conf *Config) *Config {

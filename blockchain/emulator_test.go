@@ -83,7 +83,7 @@ func generateAddTwoToCounterScript(counterAddress flowsdk.Address) string {
 	)
 }
 
-func deployAndGenerateAddTwoScript(t *testing.T, b *blockchain.Blockchain, adapter *adapters.SDKAdapter) (string, flowsdk.Address) {
+func deployAndGenerateAddTwoScript(t *testing.T, adapter *adapters.SDKAdapter) (string, flowsdk.Address) {
 
 	contracts := []templates.Contract{
 		{

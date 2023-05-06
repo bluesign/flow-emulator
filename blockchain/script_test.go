@@ -29,7 +29,7 @@ func TestExecuteScript(t *testing.T) {
 	logger := zerolog.Nop()
 	adapter := adapters.NewSdkAdapter(&logger, b)
 
-	addTwoScript, counterAddress := deployAndGenerateAddTwoScript(t, b, adapter)
+	addTwoScript, counterAddress := deployAndGenerateAddTwoScript(t, adapter)
 
 	tx := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).

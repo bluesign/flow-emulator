@@ -144,7 +144,7 @@ func SDKTransactionToFlow(sdkTx sdk.Transaction) *flowgo.TransactionBody {
 }
 
 func FlowTransactionToSDK(flowTx flowgo.TransactionBody) sdk.Transaction {
-	return sdk.Transaction{
+	transaction := sdk.Transaction{
 		ReferenceBlockID:   FlowIdentifierToSDK(flowTx.ReferenceBlockID),
 		Script:             flowTx.Script,
 		Arguments:          flowTx.Arguments,
@@ -155,6 +155,7 @@ func FlowTransactionToSDK(flowTx flowgo.TransactionBody) sdk.Transaction {
 		PayloadSignatures:  FlowTransactionSignaturesToSDK(flowTx.PayloadSignatures),
 		EnvelopeSignatures: FlowTransactionSignaturesToSDK(flowTx.EnvelopeSignatures),
 	}
+	return transaction
 }
 
 func FlowTransactionResultToSDK(result *access.TransactionResult) (*sdk.TransactionResult, error) {
@@ -180,34 +181,6 @@ func FlowTransactionResultToSDK(result *access.TransactionResult) (*sdk.Transact
 	return sdkResult, nil
 }
 
-func SDKTransactionResultToFlow(result *sdk.TransactionResult) (*access.TransactionResult, error) {
-	statusCode := uint(0)
-	errorMessage := ""
-
-	if result.Error != nil {
-		statusCode = 1
-		errorMessage = result.Error.Error()
-	}
-
-	events, err := SDKEventsToFlow(result.Events)
-	if err != nil {
-		return nil, err
-	}
-
-	return &access.TransactionResult{
-		Status:       flowgo.TransactionStatus(result.Status),
-		StatusCode:   statusCode,
-		Events:       events,
-		ErrorMessage: errorMessage,
-	}, nil
-}
-
-func SDKCollectionToFlow(col *sdk.Collection) *flowgo.LightCollection {
-	return &flowgo.LightCollection{
-		Transactions: SDKIdentifiersToFlow(col.TransactionIDs),
-	}
-}
-
 func SDKEventToFlow(event sdk.Event) (flowgo.Event, error) {
 	payload, err := jsoncdc.Encode(event.Value)
 	if err != nil {
@@ -221,21 +194,6 @@ func SDKEventToFlow(event sdk.Event) (flowgo.Event, error) {
 		EventIndex:       uint32(event.EventIndex),
 		Payload:          payload,
 	}, nil
-}
-
-func SDKEventsToFlow(events []sdk.Event) ([]flowgo.Event, error) {
-	flowEvents := make([]flowgo.Event, len(events))
-
-	for i, event := range events {
-		flowEvent, err := SDKEventToFlow(event)
-		if err != nil {
-			return nil, err
-		}
-
-		flowEvents[i] = flowEvent
-	}
-
-	return flowEvents, nil
 }
 
 func FlowEventToSDK(flowEvent flowgo.Event) (sdk.Event, error) {
@@ -373,43 +331,6 @@ func SDKAccountToFlow(account *sdk.Account) (*flowgo.Account, error) {
 		Keys:      keys,
 		Contracts: account.Contracts,
 	}, nil
-}
-
-func FlowCollectionGuaranteeToSDK(flowGuarantee flowgo.CollectionGuarantee) sdk.CollectionGuarantee {
-	return sdk.CollectionGuarantee{
-		CollectionID: FlowIdentifierToSDK(flowGuarantee.CollectionID),
-	}
-}
-
-func FlowCollectionGuaranteesToSDK(flowGuarantees []*flowgo.CollectionGuarantee) []*sdk.CollectionGuarantee {
-	ret := make([]*sdk.CollectionGuarantee, len(flowGuarantees))
-	for i, flowGuarantee := range flowGuarantees {
-		sdkGuarantee := FlowCollectionGuaranteeToSDK(*flowGuarantee)
-		ret[i] = &sdkGuarantee
-	}
-	return ret
-}
-
-func FlowSealToSDK(flowSeal flowgo.Seal) sdk.BlockSeal {
-	return sdk.BlockSeal{
-		// TODO
-	}
-}
-
-func FlowSealsToSDK(flowSeals []*flowgo.Seal) []*sdk.BlockSeal {
-	ret := make([]*sdk.BlockSeal, len(flowSeals))
-	for i, flowSeal := range flowSeals {
-		sdkSeal := FlowSealToSDK(*flowSeal)
-		ret[i] = &sdkSeal
-	}
-	return ret
-}
-
-func FlowPayloadToSDK(flowPayload *flowgo.Payload) sdk.BlockPayload {
-	return sdk.BlockPayload{
-		CollectionGuarantees: FlowCollectionGuaranteesToSDK(flowPayload.Guarantees),
-		Seals:                FlowSealsToSDK(flowPayload.Seals),
-	}
 }
 
 func FlowLightCollectionToSDK(flowCollection flowgo.LightCollection) sdk.Collection {

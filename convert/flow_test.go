@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSDKAccountToFlow(t *testing.T) {
+func TestSDKAccountToFlowAndBack(t *testing.T) {
 
 	t.Parallel()
 
@@ -60,4 +60,18 @@ func TestSDKAccountToFlow(t *testing.T) {
 		assert.Equal(t, k.SigAlgo, flowAcc.Keys[i].SignAlgo)
 	}
 
+	sdkAccount, err := FlowAccountToSDK(*flowAcc)
+	assert.NoError(t, err)
+	assert.Equal(t, len(flowAcc.Keys), len(sdkAccount.Keys))
+	assert.Equal(t, flowAcc.Address.Hex(), sdkAccount.Address.Hex())
+	assert.Equal(t, flowAcc.Contracts, sdkAccount.Contracts)
+	assert.Equal(t, flowAcc.Balance, sdkAccount.Balance)
+
+	for i, k := range sdkAccount.Keys {
+		assert.Equal(t, k.Revoked, flowAcc.Keys[i].Revoked)
+		assert.Equal(t, k.Weight, flowAcc.Keys[i].Weight)
+		assert.Equal(t, k.SequenceNumber, flowAcc.Keys[i].SeqNumber)
+		assert.Equal(t, k.HashAlgo, flowAcc.Keys[i].HashAlgo)
+		assert.Equal(t, k.SigAlgo, flowAcc.Keys[i].SignAlgo)
+	}
 }

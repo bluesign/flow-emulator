@@ -115,7 +115,7 @@ func (crr CoverageReportedRuntime) ParseAndCheckProgram(
 	return crr.Runtime.ParseAndCheckProgram(source, context)
 }
 
-func (crt CoverageReportedRuntime) ReadStored(
+func (crr CoverageReportedRuntime) ReadStored(
 	address common.Address,
 	path cadence.Path,
 	context runtime.Context,
@@ -123,8 +123,8 @@ func (crt CoverageReportedRuntime) ReadStored(
 	cadence.Value,
 	error,
 ) {
-	context.CoverageReport = crt.CoverageReport
-	return crt.Runtime.ReadStored(address, path, context)
+	context.CoverageReport = crr.CoverageReport
+	return crr.Runtime.ReadStored(address, path, context)
 }
 
 func (crr CoverageReportedRuntime) ReadLinked(

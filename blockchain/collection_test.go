@@ -44,7 +44,7 @@ func TestCollections(t *testing.T) {
 		logger := zerolog.Nop()
 		adapter := adapters.NewSdkAdapter(&logger, b)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		tx1 := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).

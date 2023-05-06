@@ -43,7 +43,7 @@ func (t *BlocksTicker) Start() error {
 	for {
 		select {
 		case <-t.ticker.C:
-			t.emulator.CommitBlock()
+			_, _ = t.emulator.CommitBlock()
 		case <-t.done:
 			return nil
 		}

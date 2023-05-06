@@ -48,7 +48,7 @@ func TestSubmitTransaction(t *testing.T) {
 
 	b, adapter := setupTransactionTests(t)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -164,7 +164,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		// Create transaction with no GasLimit field
 		tx := flowsdk.NewTransaction().
@@ -192,7 +192,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		// Create transaction with no PayerAccount field
 		tx := flowsdk.NewTransaction().
@@ -220,7 +220,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		// Create transaction with no PayerAccount field
 		tx := flowsdk.NewTransaction().
@@ -249,7 +249,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		invalidSequenceNumber := b.ServiceKey().SequenceNumber + 2137
 		tx := flowsdk.NewTransaction().
@@ -293,7 +293,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		tx := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
@@ -321,7 +321,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		expiredBlock, err := b.GetLatestBlock()
 		require.NoError(t, err)
@@ -358,7 +358,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		invalidSigner, err := crypto.NewNaiveSigner(b.ServiceKey().PrivateKey, crypto.SHA2_256)
 		require.NoError(t, err)
@@ -456,7 +456,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		tx := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
@@ -509,7 +509,7 @@ func TestSubmitTransaction_Duplicate(t *testing.T) {
 		blockchain.WithStorageLimitEnabled(false),
 	)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 	tx := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -678,7 +678,7 @@ func TestSubmitTransaction_EnvelopeSignature(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		tx := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
@@ -809,7 +809,7 @@ func TestSubmitTransaction_EnvelopeSignature(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		// use key that does not exist on service account
 		invalidKey, _ := crypto.GeneratePrivateKey(crypto.ECDSA_P256,
@@ -912,7 +912,7 @@ func TestSubmitTransaction_PayloadSignatures(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 		// create a new account,
 		// authorizer must be different from payer
@@ -1336,7 +1336,7 @@ func TestGetTransaction(t *testing.T) {
 		blockchain.WithStorageLimitEnabled(false),
 	)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -1382,7 +1382,7 @@ func TestGetTransactionResult(t *testing.T) {
 		blockchain.WithStorageLimitEnabled(false),
 	)
 
-	addTwoScript, counterAddress := deployAndGenerateAddTwoScript(t, b, adapter)
+	addTwoScript, counterAddress := deployAndGenerateAddTwoScript(t, adapter)
 
 	tx := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -1750,9 +1750,10 @@ func TestSubmitTransactionWithCustomLogger(t *testing.T) {
 		t,
 		blockchain.WithStorageLimitEnabled(false),
 		blockchain.WithLogger(logger),
+		blockchain.WithTransactionFeesEnabled(true),
 	)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).

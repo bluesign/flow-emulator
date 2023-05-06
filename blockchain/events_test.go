@@ -125,14 +125,26 @@ func TestEventEmitted(t *testing.T) {
 		require.Len(t, events, 1)
 
 		actualEvent := events[0].Events[0]
-
 		decodedEvent := actualEvent.Value
-
 		expectedID := flowsdk.Event{TransactionID: tx.ID(), EventIndex: 0}.ID()
 
 		assert.Equal(t, string(expectedType), actualEvent.Type)
 		assert.Equal(t, expectedID, actualEvent.ID())
 		assert.Equal(t, cadence.NewInt(1), decodedEvent.Fields[0])
 		assert.Equal(t, cadence.NewInt(2), decodedEvent.Fields[1])
+
+		events, err = adapter.GetEventsForBlockIDs(context.Background(), string(expectedType), []flowsdk.Identifier{flowsdk.Identifier(block.Header.ID())})
+		require.NoError(t, err)
+		require.Len(t, events, 1)
+
+		actualEvent = events[0].Events[0]
+		decodedEvent = actualEvent.Value
+		expectedID = flowsdk.Event{TransactionID: tx.ID(), EventIndex: 0}.ID()
+
+		assert.Equal(t, string(expectedType), actualEvent.Type)
+		assert.Equal(t, expectedID, actualEvent.ID())
+		assert.Equal(t, cadence.NewInt(1), decodedEvent.Fields[0])
+		assert.Equal(t, cadence.NewInt(2), decodedEvent.Fields[1])
+
 	})
 }

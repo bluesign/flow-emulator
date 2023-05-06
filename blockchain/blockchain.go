@@ -541,7 +541,7 @@ type CadenceHook struct {
 	MainLogger *zerolog.Logger
 }
 
-func (h CadenceHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
+func (h CadenceHook) Run(_ *zerolog.Event, level zerolog.Level, msg string) {
 	const logPrefix = "Cadence log:"
 	if level != zerolog.NoLevel && strings.HasPrefix(msg, logPrefix) {
 		h.MainLogger.Info().Msg(
@@ -1044,7 +1044,7 @@ func (b *Blockchain) GetEventsForHeightRange(eventType string, startHeight, endH
 		if err != nil {
 			break
 		}
-		
+
 		result = append(result, flowgo.BlockEvents{
 			BlockID:        block.ID(),
 			BlockHeight:    block.Header.Height,
@@ -1228,7 +1228,7 @@ func (b *Blockchain) commitBlock() (*flowgo.Block, error) {
 	block := b.pendingBlock.Block()
 	collections := b.pendingBlock.Collections()
 	transactions := b.pendingBlock.Transactions()
-	transactionResults, err := convertToSealedResults(b.pendingBlock.TransactionResults())
+	transactionResults, err := convertToSealedResults(b.pendingBlock.TransactionResults(), b.pendingBlock.ID(), b.pendingBlock.height)
 	if err != nil {
 		return nil, err
 	}
@@ -1455,12 +1455,14 @@ func (b *Blockchain) ExecuteScriptAtBlockHeight(
 
 func convertToSealedResults(
 	results map[flowgo.Identifier]IndexedTransactionResult,
+	blockID flowgo.Identifier,
+	blockHeight uint64,
 ) (map[flowgo.Identifier]*types.StorableTransactionResult, error) {
 
 	output := make(map[flowgo.Identifier]*types.StorableTransactionResult)
 
 	for id, result := range results {
-		temp, err := convert.ToStorableResult(result.ProcedureOutput)
+		temp, err := convert.ToStorableResult(result.ProcedureOutput, blockID, blockHeight)
 		if err != nil {
 			return nil, err
 		}

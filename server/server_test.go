@@ -13,8 +13,12 @@ import (
 )
 
 func TestExecuteScript(t *testing.T) {
+
 	logger := zerolog.Nop()
 	server := NewEmulatorServer(&logger, &Config{})
+	go server.Start()
+	defer server.Stop()
+
 	require.NotNil(t, server)
 
 	const code = `

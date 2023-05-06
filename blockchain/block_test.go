@@ -45,7 +45,7 @@ func TestCommitBlock(t *testing.T) {
 	logger := zerolog.Nop()
 	adapter := adapters.NewSdkAdapter(&logger, b)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -134,7 +134,7 @@ func TestBlockView(t *testing.T) {
 		assert.Equal(t, uint64(0), block.Header.View)
 	})
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, b, adapter)
+	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
 
 	// create a few blocks, each with one transaction
 	for i := 0; i < nBlocks; i++ {
