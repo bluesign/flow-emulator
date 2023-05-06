@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/onflow/flow-emulator/blockchain"
 	"os"
 	"strings"
 	"sync"
@@ -20,9 +21,6 @@ import (
 	"github.com/onflow/cadence/runtime/common"
 	"github.com/onflow/cadence/runtime/interpreter"
 	sdk "github.com/onflow/flow-go-sdk"
-
-	emulator "github.com/onflow/flow-emulator"
-	"github.com/onflow/flow-emulator/server/backend"
 )
 
 type ScopeIdentifier uint
@@ -35,7 +33,7 @@ const (
 
 type session struct {
 	logger                *zerolog.Logger
-	backend               *backend.Backend
+	emulator              blockchain.Emulator
 	readWriter            *bufio.ReadWriter
 	variables             map[int]any
 	variableHandleCounter int
@@ -203,7 +201,7 @@ func (s *session) handleVariablesRequest(request *dap.VariablesRequest) {
 	case ScopeIdentifierStorage:
 		index := 1
 		for {
-			account, err := s.backend.Emulator().GetAccountByIndex(uint(index))
+			account, err := s.emulator.GetAccountByIndex(uint(index))
 			if err != nil { //end of accounts
 				break
 			}
@@ -491,7 +489,7 @@ func (s *session) handleAttachRequest(request *dap.AttachRequest) {
 
 func (s *session) handleDisconnectRequest(request *dap.DisconnectRequest) {
 	s.debugger.Continue()
-	s.backend.Emulator().EndDebugging()
+	s.emulator.EndDebugging()
 	s.configurationDone = false
 	s.launchRequested = false
 	s.send(&dap.DisconnectResponse{
@@ -714,9 +712,9 @@ func (s *session) newStackFrame(positioned ast.HasPosition, location common.Loca
 
 func (s *session) pathCode(path string) string {
 	basename := strings.TrimSuffix(path, ".cdc")
-	backendEmulator := s.backend.Emulator()
+	backendEmulator := s.emulator
 
-	runningScriptID, runningCode := backendEmulator.(*emulator.Blockchain).CurrentScript()
+	runningScriptID, runningCode := backendEmulator.(*blockchain.Blockchain).CurrentScript()
 	if basename == runningScriptID {
 		return runningCode
 	}
@@ -731,8 +729,8 @@ func (s *session) pathCode(path string) string {
 	}
 
 	if addressLocation, ok := location.(common.AddressLocation); ok {
-		var account *sdk.Account
-		address := sdk.Address(addressLocation.Address)
+		var account *flowgo.Account
+		address := flowgo.Address(addressLocation.Address)
 		// nolint:staticcheck
 		account, err = backendEmulator.GetAccountUnsafe(address)
 		if err != nil {
@@ -756,7 +754,7 @@ func (s *session) step() {
 }
 
 func (s *session) run() context.CancelFunc {
-	s.backend.Emulator().SetDebugger(s.debugger)
+	s.emulator.SetDebugger(s.debugger)
 	if s.stopOnEntry {
 		s.debugger.RequestPause()
 	}
@@ -799,7 +797,7 @@ func (s *session) run() context.CancelFunc {
 			// TODO: add support for arguments
 			// TODO: add support for transactions. requires automine
 
-			result, err := s.backend.ExecuteScriptAtLatestBlock(context.Background(), []byte(s.code), nil)
+			result, err := s.emulator.ExecuteScript([]byte(s.code), nil)
 			cancel()
 
 			var outputBody dap.OutputEventBody
@@ -811,7 +809,7 @@ func (s *session) run() context.CancelFunc {
 			} else {
 				outputBody = dap.OutputEventBody{
 					Category: "stdout",
-					Output:   string(result),
+					Output:   result.Value.String(),
 				}
 			}
 
@@ -836,7 +834,7 @@ func (s *session) run() context.CancelFunc {
 				Event: newDAPEvent("terminated"),
 			})
 
-			s.backend.Emulator().EndDebugging()
+			s.emulator.EndDebugging()
 
 		}()
 
