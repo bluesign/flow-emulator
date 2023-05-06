@@ -27,6 +27,30 @@ import (
 	flowgo "github.com/onflow/flow-go/model/flow"
 )
 
+type InvalidArgumentError struct {
+	msg string
+}
+
+func (e InvalidArgumentError) Error() string {
+	return fmt.Sprintf("Invalid argument error: %s", e.msg)
+}
+
+func NewInvalidArgumentError(msg string) *InvalidArgumentError {
+	return &InvalidArgumentError{msg: msg}
+}
+
+type InternalError struct {
+	msg string
+}
+
+func (e InternalError) Error() string {
+	return fmt.Sprintf("Internal error: %s", e.msg)
+}
+
+func NewInternalError(msg string) *InternalError {
+	return &InternalError{msg: msg}
+}
+
 // A NotFoundError indicates that an entity could not be found.
 type NotFoundError interface {
 	isNotFoundError()
