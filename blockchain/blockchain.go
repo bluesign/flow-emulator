@@ -927,14 +927,14 @@ func (b *Blockchain) GetTransactionResult(txID flowgo.Identifier) (*access.Trans
 		return nil, err
 	}
 
-	//TODO: bluesign: something missing here (blockHeight, blockID..)
 	result := access.TransactionResult{
 		Status:        flowgo.TransactionStatusSealed,
 		StatusCode:    uint(storedResult.ErrorCode),
 		ErrorMessage:  storedResult.ErrorMessage,
 		Events:        storedResult.Events,
 		TransactionID: txID,
-		BlockHeight:   0,
+		BlockHeight:   storedResult.BlockHeight,
+		BlockID:       storedResult.BlockID,
 	}
 
 	return &result, nil
