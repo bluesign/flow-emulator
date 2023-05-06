@@ -156,6 +156,30 @@ func FlowTransactionToSDK(flowTx flowgo.TransactionBody) sdk.Transaction {
 	}
 }
 
+func FlowTransactionResultToSDK(result *access.TransactionResult) (*sdk.TransactionResult, error) {
+	var err error = nil
+
+	if result.ErrorMessage != "" {
+		err = fmt.Errorf(result.ErrorMessage)
+	}
+
+	events, err := FlowEventsToSDK(result.Events)
+	if err != nil {
+		return nil, err
+	}
+
+	sdkResult := &sdk.TransactionResult{
+		Status:        sdk.TransactionStatus(result.Status),
+		Error:         err,
+		Events:        events,
+		TransactionID: sdk.Identifier(result.TransactionID),
+		BlockHeight:   result.BlockHeight,
+		BlockID:       sdk.Identifier(result.BlockID),
+	}
+
+	return sdkResult, nil
+}
+
 func SDKTransactionResultToFlow(result *sdk.TransactionResult) (*access.TransactionResult, error) {
 	statusCode := uint(0)
 	errorMessage := ""
@@ -322,13 +346,13 @@ func FlowAccountPublicKeysToSDK(flowPublicKeys []flowgo.AccountPublicKey) ([]*sd
 	return ret, nil
 }
 
-func FlowAccountToSDK(flowAccount flowgo.Account) (sdk.Account, error) {
+func FlowAccountToSDK(flowAccount flowgo.Account) (*sdk.Account, error) {
 	sdkPublicKeys, err := FlowAccountPublicKeysToSDK(flowAccount.Keys)
 	if err != nil {
 		return sdk.Account{}, err
 	}
 
-	return sdk.Account{
+	return &sdk.Account{
 		Address:   FlowAddressToSDK(flowAccount.Address),
 		Balance:   flowAccount.Balance,
 		Code:      nil,
