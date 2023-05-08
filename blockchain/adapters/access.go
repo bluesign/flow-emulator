@@ -62,23 +62,6 @@ func convertError(err error) error {
 	return nil
 }
 
-// SetEmulator swaps emulator for state management.
-func (a *AccessAdapter) SetEmulator(emulator blockchain.Emulator) {
-	a.emulator = emulator
-}
-
-func (a *AccessAdapter) Emulator() blockchain.Emulator {
-	return a.emulator
-}
-
-func (a *AccessAdapter) EnableAutoMine() {
-	a.emulator.EnableAutoMine()
-}
-
-func (a *AccessAdapter) DisableAutoMine() {
-	a.emulator.DisableAutoMine()
-}
-
 func (a *AccessAdapter) Ping(_ context.Context) error {
 	return convertError(a.emulator.Ping())
 }
