@@ -14,12 +14,6 @@ import (
 	"testing"
 )
 
-type mockFunc func(*mocks.MockEmulator)
-
-type mocked struct {
-	mocks []mockFunc
-}
-
 func accessTest(f func(t *testing.T, adapter *AccessAdapter, emu *mocks.MockEmulator)) func(t *testing.T) {
 	return func(t *testing.T) {
 		mockCtrl := gomock.NewController(t)
