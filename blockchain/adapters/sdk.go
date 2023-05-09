@@ -41,17 +41,6 @@ type SDKAdapter struct {
 	emulator blockchain.Emulator
 }
 
-type BlockStatus int
-
-const (
-	// BlockStatusUnknown indicates that the block status is not known.
-	BlockStatusUnknown BlockStatus = iota
-	// BlockStatusFinalized is the status of a finalized block.
-	BlockStatusFinalized
-	// BlockStatusSealed is the status of a sealed block.
-	BlockStatusSealed
-)
-
 func (b *SDKAdapter) EnableAutoMine() {
 	b.emulator.EnableAutoMine()
 }
@@ -85,12 +74,12 @@ func (b *SDKAdapter) GetLatestBlockHeader(
 	_ bool,
 ) (
 	*sdk.BlockHeader,
-	BlockStatus,
+	sdk.BlockStatus,
 	error,
 ) {
 	block, err := b.emulator.GetLatestBlock()
 	if err != nil {
-		return nil, BlockStatusUnknown, status.Error(codes.Internal, err.Error())
+		return nil, sdk.BlockStatusUnknown, status.Error(codes.Internal, err.Error())
 	}
 	blockHeader := sdk.BlockHeader{
 		ID:        sdk.Identifier(block.ID()),
@@ -98,7 +87,7 @@ func (b *SDKAdapter) GetLatestBlockHeader(
 		Height:    block.Header.Height,
 		Timestamp: block.Header.Timestamp,
 	}
-	return &blockHeader, BlockStatusSealed, nil
+	return &blockHeader, sdk.BlockStatusSealed, nil
 }
 
 // GetBlockHeaderByHeight gets a block header by height.
@@ -107,12 +96,12 @@ func (b *SDKAdapter) GetBlockHeaderByHeight(
 	height uint64,
 ) (
 	*sdk.BlockHeader,
-	BlockStatus,
+	sdk.BlockStatus,
 	error,
 ) {
 	block, err := b.emulator.GetBlockByHeight(height)
 	if err != nil {
-		return nil, BlockStatusUnknown, status.Error(codes.Internal, err.Error())
+		return nil, sdk.BlockStatusUnknown, status.Error(codes.Internal, err.Error())
 	}
 	blockHeader := sdk.BlockHeader{
 		ID:        sdk.Identifier(block.ID()),
@@ -120,7 +109,7 @@ func (b *SDKAdapter) GetBlockHeaderByHeight(
 		Height:    block.Header.Height,
 		Timestamp: block.Header.Timestamp,
 	}
-	return &blockHeader, BlockStatusSealed, nil
+	return &blockHeader, sdk.BlockStatusSealed, nil
 }
 
 // GetBlockHeaderByID gets a block header by ID.
@@ -129,12 +118,12 @@ func (b *SDKAdapter) GetBlockHeaderByID(
 	id sdk.Identifier,
 ) (
 	*sdk.BlockHeader,
-	BlockStatus,
+	sdk.BlockStatus,
 	error,
 ) {
 	block, err := b.emulator.GetBlockByID(convert.SDKIdentifierToFlow(id))
 	if err != nil {
-		return nil, BlockStatusUnknown, err
+		return nil, sdk.BlockStatusUnknown, err
 	}
 	blockHeader := sdk.BlockHeader{
 		ID:        sdk.Identifier(block.ID()),
@@ -142,7 +131,7 @@ func (b *SDKAdapter) GetBlockHeaderByID(
 		Height:    block.Header.Height,
 		Timestamp: block.Header.Timestamp,
 	}
-	return &blockHeader, BlockStatusSealed, nil
+	return &blockHeader, sdk.BlockStatusSealed, nil
 }
 
 // GetLatestBlock gets the latest sealed block.
@@ -151,12 +140,12 @@ func (b *SDKAdapter) GetLatestBlock(
 	_ bool,
 ) (
 	*sdk.Block,
-	BlockStatus,
+	sdk.BlockStatus,
 	error,
 ) {
 	flowBlock, err := b.emulator.GetLatestBlock()
 	if err != nil {
-		return nil, BlockStatusUnknown, status.Error(codes.Internal, err.Error())
+		return nil, sdk.BlockStatusUnknown, status.Error(codes.Internal, err.Error())
 	}
 	block := sdk.Block{
 		BlockHeader: sdk.BlockHeader{
@@ -167,7 +156,7 @@ func (b *SDKAdapter) GetLatestBlock(
 		},
 		BlockPayload: sdk.BlockPayload{},
 	}
-	return &block, BlockStatusSealed, nil
+	return &block, sdk.BlockStatusSealed, nil
 }
 
 // GetBlockByHeight gets a block by height.
@@ -176,12 +165,12 @@ func (b *SDKAdapter) GetBlockByHeight(
 	height uint64,
 ) (
 	*sdk.Block,
-	BlockStatus,
+	sdk.BlockStatus,
 	error,
 ) {
 	flowBlock, err := b.emulator.GetBlockByHeight(height)
 	if err != nil {
-		return nil, BlockStatusUnknown, status.Error(codes.Internal, err.Error())
+		return nil, sdk.BlockStatusUnknown, status.Error(codes.Internal, err.Error())
 	}
 	block := sdk.Block{
 		BlockHeader: sdk.BlockHeader{
@@ -192,7 +181,7 @@ func (b *SDKAdapter) GetBlockByHeight(
 		},
 		BlockPayload: sdk.BlockPayload{},
 	}
-	return &block, BlockStatusSealed, nil
+	return &block, sdk.BlockStatusSealed, nil
 }
 
 // GetBlockByID gets a block by ID.
@@ -201,12 +190,12 @@ func (b *SDKAdapter) GetBlockByID(
 	id sdk.Identifier,
 ) (
 	*sdk.Block,
-	BlockStatus,
+	sdk.BlockStatus,
 	error,
 ) {
 	flowBlock, err := b.emulator.GetBlockByID(convert.SDKIdentifierToFlow(id))
 	if err != nil {
-		return nil, BlockStatusUnknown, status.Error(codes.Internal, err.Error())
+		return nil, sdk.BlockStatusUnknown, status.Error(codes.Internal, err.Error())
 	}
 	block := sdk.Block{
 		BlockHeader: sdk.BlockHeader{
@@ -217,7 +206,7 @@ func (b *SDKAdapter) GetBlockByID(
 		},
 		BlockPayload: sdk.BlockPayload{},
 	}
-	return &block, BlockStatusSealed, nil
+	return &block, sdk.BlockStatusSealed, nil
 }
 
 // GetCollectionByID gets a collection by ID.
@@ -380,7 +369,8 @@ func (b *SDKAdapter) GetTransactionResultByIndex(ctx context.Context, id sdk.Ide
 	return convert.FlowTransactionResultToSDK(transactionResult)
 }
 
-func (b *SDKAdapter) GetTransactionsByBlockID(ctx context.Context, id sdk.Identifier) (result []*sdk.Transaction, err error) {
+func (b *SDKAdapter) GetTransactionsByBlockID(ctx context.Context, id sdk.Identifier) ([]*sdk.Transaction, error) {
+	result := []*sdk.Transaction{}
 	transactions, err := b.emulator.GetTransactionsByBlockID(convert.SDKIdentifierToFlow(id))
 	if err != nil {
 		return nil, err
@@ -393,7 +383,8 @@ func (b *SDKAdapter) GetTransactionsByBlockID(ctx context.Context, id sdk.Identi
 	return result, nil
 }
 
-func (b *SDKAdapter) GetTransactionResultsByBlockID(ctx context.Context, id sdk.Identifier) (result []*sdk.TransactionResult, err error) {
+func (b *SDKAdapter) GetTransactionResultsByBlockID(ctx context.Context, id sdk.Identifier) ([]*sdk.TransactionResult, error) {
+	result := []*sdk.TransactionResult{}
 	transactionResults, err := b.emulator.GetTransactionResultsByBlockID(convert.SDKIdentifierToFlow(id))
 	if err != nil {
 		return nil, err
@@ -408,7 +399,8 @@ func (b *SDKAdapter) GetTransactionResultsByBlockID(ctx context.Context, id sdk.
 	return result, nil
 }
 
-func (b *SDKAdapter) GetEventsForBlockIDs(ctx context.Context, eventType string, blockIDs []sdk.Identifier) (result []*sdk.BlockEvents, err error) {
+func (b *SDKAdapter) GetEventsForBlockIDs(ctx context.Context, eventType string, blockIDs []sdk.Identifier) ([]*sdk.BlockEvents, error) {
+	result := []*sdk.BlockEvents{}
 	flowBlockEvents, err := b.emulator.GetEventsForBlockIDs(eventType, convert.SDKIdentifiersToFlow(blockIDs))
 	if err != nil {
 		return nil, err
@@ -434,7 +426,8 @@ func (b *SDKAdapter) GetEventsForBlockIDs(ctx context.Context, eventType string,
 	return result, nil
 }
 
-func (b *SDKAdapter) GetEventsForHeightRange(ctx context.Context, eventType string, startHeight, endHeight uint64) (result []*sdk.BlockEvents, err error) {
+func (b *SDKAdapter) GetEventsForHeightRange(ctx context.Context, eventType string, startHeight, endHeight uint64) ([]*sdk.BlockEvents, error) {
+	result := []*sdk.BlockEvents{}
 
 	flowBlockEvents, err := b.emulator.GetEventsForHeightRange(eventType, startHeight, endHeight)
 	if err != nil {
