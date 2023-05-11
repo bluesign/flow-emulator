@@ -89,7 +89,11 @@ func (m EmulatorAPIServer) Config(w http.ResponseWriter, _ *http.Request) {
 
 func (m EmulatorAPIServer) CommitBlock(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	m.emulator.CommitBlock()
+	_, err := m.emulator.CommitBlock()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	block, err := m.emulator.GetLatestBlock()
 	if err != nil {

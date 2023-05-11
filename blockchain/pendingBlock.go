@@ -100,9 +100,7 @@ func (b *pendingBlock) Collections() []*flowgo.LightCollection {
 	transactionIDs := make([]flowgo.Identifier, len(b.transactionIDs))
 
 	// TODO: remove once SDK models are removed
-	for i, transactionID := range b.transactionIDs {
-		transactionIDs[i] = transactionID
-	}
+	copy(transactionIDs, b.transactionIDs)
 
 	collection := flowgo.LightCollection{Transactions: transactionIDs}
 
