@@ -274,7 +274,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 
 		require.Error(t, result.Error)
 
-		assert.IsType(t, &types.FlowError{}, result.Error)
+		assert.IsType(t, &types.FVMError{}, result.Error)
 		seqErr := fvmerrors.InvalidProposalSeqNumberError{}
 		ok := errors.As(result.Error, &seqErr)
 		assert.True(t, ok)

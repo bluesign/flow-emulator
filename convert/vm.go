@@ -55,5 +55,5 @@ func VMErrorToEmulator(vmError fvmerrors.CodedError) error {
 		return nil
 	}
 
-	return &types.FlowError{FlowError: vmError}
+	return &types.FVMError{FlowError: vmError}
 }

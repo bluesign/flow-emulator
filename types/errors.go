@@ -20,6 +20,7 @@ package types
 
 import (
 	"fmt"
+	fvmerrors "github.com/onflow/flow-go/fvm/errors"
 
 	"github.com/onflow/flow-go-sdk/crypto"
 	"github.com/onflow/flow-go/access"
@@ -239,6 +240,18 @@ type ExecutionError struct {
 
 func (e *ExecutionError) Error() string {
 	return fmt.Sprintf("execution error code %d: %s", e.Code, e.Message)
+}
+
+type FVMError struct {
+	FlowError fvmerrors.CodedError
+}
+
+func (f *FVMError) Error() string {
+	return f.FlowError.Error()
+}
+
+func (f *FVMError) Unwrap() error {
+	return f.FlowError
 }
 
 func ConvertAccessError(err error) error {

@@ -447,21 +447,6 @@ func (mr *MockEmulatorMockRecorder) GetTransactionResult(arg0 interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransactionResult", reflect.TypeOf((*MockEmulator)(nil).GetTransactionResult), arg0)
 }
 
-// GetTransactionResultByIndex mocks base method.
-func (m *MockEmulator) GetTransactionResultByIndex(arg0 flow.Identifier, arg1 uint32) (*access.TransactionResult, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTransactionResultByIndex", arg0, arg1)
-	ret0, _ := ret[0].(*access.TransactionResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTransactionResultByIndex indicates an expected call of GetTransactionResultByIndex.
-func (mr *MockEmulatorMockRecorder) GetTransactionResultByIndex(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransactionResultByIndex", reflect.TypeOf((*MockEmulator)(nil).GetTransactionResultByIndex), arg0, arg1)
-}
-
 // GetTransactionResultsByBlockID mocks base method.
 func (m *MockEmulator) GetTransactionResultsByBlockID(arg0 flow.Identifier) ([]*access.TransactionResult, error) {
 	m.ctrl.T.Helper()
