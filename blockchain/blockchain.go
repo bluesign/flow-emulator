@@ -24,7 +24,7 @@ import (
 	"github.com/onflow/cadence/runtime"
 	"github.com/onflow/cadence/runtime/common"
 	"github.com/onflow/cadence/runtime/interpreter"
-	flowgosdk "github.com/onflow/flow-go-sdk"
+	flowsdk "github.com/onflow/flow-go-sdk"
 	sdkcrypto "github.com/onflow/flow-go-sdk/crypto"
 	"github.com/onflow/flow-go/access"
 	"github.com/onflow/flow-go/crypto"
@@ -39,184 +39,38 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/onflow/flow-emulator/convert"
+	"github.com/onflow/flow-emulator/emulator"
 	"github.com/onflow/flow-emulator/storage"
 	"github.com/onflow/flow-emulator/storage/util"
 	"github.com/onflow/flow-emulator/types"
 )
 
-var _ Emulator = &Blockchain{}
+var _ emulator.Emulator = &Blockchain{}
 
-// Blockchain emulates the functionality of the Flow blockchain.
-type Blockchain struct {
-	// committed chain state: blocks, transactions, registers, events
-	storage storage.Store
+// New instantiates a new emulated blockchain with the provided options.
+func New(opts ...Option) (*Blockchain, error) {
 
-	// mutex protecting pending block
-	mu sync.RWMutex
-
-	// pending block containing block info, register state, pending transactions
-	pendingBlock *pendingBlock
-
-	// used to execute transactions and scripts
-	vm    *fvm.VirtualMachine
-	vmCtx fvm.Context
-
-	transactionValidator *access.TransactionValidator
-
-	serviceKey ServiceKey
-
-	debugger               *interpreter.Debugger
-	activeDebuggingSession bool
-	currentCode            string
-	currentScriptID        string
-
-	conf config
-
-	coverageReportedRuntime *CoverageReportedRuntime
-}
-
-type ServiceKey struct {
-	Index          int
-	Address        flowgosdk.Address
-	SequenceNumber uint64
-	PrivateKey     sdkcrypto.PrivateKey
-	PublicKey      sdkcrypto.PublicKey
-	HashAlgo       sdkcrypto.HashAlgorithm
-	SigAlgo        sdkcrypto.SignatureAlgorithm
-	Weight         int
-}
-
-func (s ServiceKey) Signer() (sdkcrypto.Signer, error) {
-	return sdkcrypto.NewInMemorySigner(s.PrivateKey, s.HashAlgo)
-}
-
-func (s ServiceKey) AccountKey() *flowgosdk.AccountKey {
-
-	var publicKey sdkcrypto.PublicKey
-	if s.PublicKey != nil {
-		publicKey = s.PublicKey
+	// apply options to the default config
+	conf := defaultConfig
+	for _, opt := range opts {
+		opt(&conf)
 	}
 
-	if s.PrivateKey != nil {
-		publicKey = s.PrivateKey.PublicKey()
+	b := &Blockchain{
+		storage:                conf.GetStore(),
+		serviceKey:             conf.GetServiceKey(),
+		debugger:               nil,
+		activeDebuggingSession: false,
+		conf:                   conf,
 	}
 
-	return &flowgosdk.AccountKey{
-		Index:          s.Index,
-		PublicKey:      publicKey,
-		SigAlgo:        s.SigAlgo,
-		HashAlgo:       s.HashAlgo,
-		Weight:         s.Weight,
-		SequenceNumber: s.SequenceNumber,
-	}
-}
-
-const defaultServiceKeyPrivateKeySeed = "elephant ears space cowboy octopus rodeo potato cannon pineapple"
-const DefaultServiceKeySigAlgo = sdkcrypto.ECDSA_P256
-const DefaultServiceKeyHashAlgo = sdkcrypto.SHA3_256
-
-func DefaultServiceKey() ServiceKey {
-	return GenerateDefaultServiceKey(DefaultServiceKeySigAlgo, DefaultServiceKeyHashAlgo)
-}
-
-func GenerateDefaultServiceKey(
-	sigAlgo sdkcrypto.SignatureAlgorithm,
-	hashAlgo sdkcrypto.HashAlgorithm,
-) ServiceKey {
-	privateKey, err := sdkcrypto.GeneratePrivateKey(
-		sigAlgo,
-		[]byte(defaultServiceKeyPrivateKeySeed),
-	)
+	err := b.ReloadBlockchain()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to generate default service key: %s", err.Error()))
+		return nil, err
 	}
+	return b, nil
 
-	return ServiceKey{
-		PrivateKey: privateKey,
-		SigAlgo:    sigAlgo,
-		HashAlgo:   hashAlgo,
-	}
 }
-
-// config is a set of configuration options for an emulated blockchain.
-type config struct {
-	ServiceKey                   ServiceKey
-	Store                        storage.Store
-	SimpleAddresses              bool
-	GenesisTokenSupply           cadence.UFix64
-	TransactionMaxGasLimit       uint64
-	ScriptGasLimit               uint64
-	TransactionExpiry            uint
-	StorageLimitEnabled          bool
-	TransactionFeesEnabled       bool
-	ContractRemovalEnabled       bool
-	MinimumStorageReservation    cadence.UFix64
-	StorageMBPerFLOW             cadence.UFix64
-	Logger                       zerolog.Logger
-	ServerLogger                 zerolog.Logger
-	TransactionValidationEnabled bool
-	ChainID                      flowgo.ChainID
-	CoverageReportingEnabled     bool
-	AutoMine                     bool
-}
-
-func (conf config) GetStore() storage.Store {
-	if conf.Store == nil {
-		store, err := util.CreateDefaultStorage()
-		if err != nil {
-			panic("Cannot initialize memory storage")
-		}
-		conf.Store = store
-	}
-	return conf.Store
-}
-
-func (conf config) GetChainID() flowgo.ChainID {
-	if conf.SimpleAddresses {
-		return flowgo.MonotonicEmulator
-	}
-
-	return conf.ChainID
-}
-
-func (conf config) GetServiceKey() ServiceKey {
-	// set up service key
-	serviceKey := conf.ServiceKey
-	serviceKey.Address = flowgosdk.Address(conf.GetChainID().Chain().ServiceAddress())
-	serviceKey.Weight = flowgosdk.AccountKeyWeightThreshold
-	return serviceKey
-}
-
-const defaultGenesisTokenSupply = "1000000000.0"
-const defaultScriptGasLimit = 100000
-const defaultTransactionMaxGasLimit = flowgo.DefaultMaxTransactionGasLimit
-
-// defaultConfig is the default configuration for an emulated blockchain.
-var defaultConfig = func() config {
-	genesisTokenSupply, err := cadence.NewUFix64(defaultGenesisTokenSupply)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to parse default genesis token supply: %s", err.Error()))
-	}
-
-	return config{
-		ServiceKey:                   DefaultServiceKey(),
-		Store:                        nil,
-		SimpleAddresses:              false,
-		GenesisTokenSupply:           genesisTokenSupply,
-		ScriptGasLimit:               defaultScriptGasLimit,
-		TransactionMaxGasLimit:       defaultTransactionMaxGasLimit,
-		MinimumStorageReservation:    fvm.DefaultMinimumStorageReservation,
-		StorageMBPerFLOW:             fvm.DefaultStorageMBPerFLOW,
-		TransactionExpiry:            0, // TODO: replace with sensible default
-		StorageLimitEnabled:          true,
-		Logger:                       zerolog.Nop(),
-		ServerLogger:                 zerolog.Nop(),
-		TransactionValidationEnabled: true,
-		ChainID:                      flowgo.Emulator,
-		CoverageReportingEnabled:     false,
-		AutoMine:                     false,
-	}
-}()
 
 // Option is a function applying a change to the emulator config.
 type Option func(*config)
@@ -246,7 +100,7 @@ func WithServicePublicKey(
 	hashAlgo sdkcrypto.HashAlgorithm,
 ) Option {
 	return func(c *config) {
-		c.ServiceKey = ServiceKey{
+		c.ServiceKey = emulator.ServiceKey{
 			PublicKey: servicePublicKey,
 			SigAlgo:   sigAlgo,
 			HashAlgo:  hashAlgo,
@@ -261,7 +115,7 @@ func WithServicePrivateKey(
 	hashAlgo sdkcrypto.HashAlgorithm,
 ) Option {
 	return func(c *config) {
-		c.ServiceKey = ServiceKey{
+		c.ServiceKey = emulator.ServiceKey{
 			PrivateKey: privateKey,
 			PublicKey:  privateKey.PublicKey(),
 			HashAlgo:   hashAlgo,
@@ -403,6 +257,115 @@ func WithCoverageReportingEnabled(enabled bool) Option {
 	}
 }
 
+// Blockchain emulates the functionality of the Flow blockchain.
+type Blockchain struct {
+	// committed chain state: blocks, transactions, registers, events
+	storage storage.Store
+
+	// mutex protecting pending block
+	mu sync.RWMutex
+
+	// pending block containing block info, register state, pending transactions
+	pendingBlock *pendingBlock
+
+	// used to execute transactions and scripts
+	vm    *fvm.VirtualMachine
+	vmCtx fvm.Context
+
+	transactionValidator *access.TransactionValidator
+
+	serviceKey emulator.ServiceKey
+
+	debugger               *interpreter.Debugger
+	activeDebuggingSession bool
+	currentCode            string
+	currentScriptID        string
+
+	conf config
+
+	coverageReportedRuntime *CoverageReportedRuntime
+}
+
+// config is a set of configuration options for an emulated blockchain.
+type config struct {
+	ServiceKey                   emulator.ServiceKey
+	Store                        storage.Store
+	SimpleAddresses              bool
+	GenesisTokenSupply           cadence.UFix64
+	TransactionMaxGasLimit       uint64
+	ScriptGasLimit               uint64
+	TransactionExpiry            uint
+	StorageLimitEnabled          bool
+	TransactionFeesEnabled       bool
+	ContractRemovalEnabled       bool
+	MinimumStorageReservation    cadence.UFix64
+	StorageMBPerFLOW             cadence.UFix64
+	Logger                       zerolog.Logger
+	ServerLogger                 zerolog.Logger
+	TransactionValidationEnabled bool
+	ChainID                      flowgo.ChainID
+	CoverageReportingEnabled     bool
+	AutoMine                     bool
+}
+
+func (conf config) GetStore() storage.Store {
+	if conf.Store == nil {
+		store, err := util.CreateDefaultStorage()
+		if err != nil {
+			panic("Cannot initialize memory storage")
+		}
+		conf.Store = store
+	}
+	return conf.Store
+}
+
+func (conf config) GetChainID() flowgo.ChainID {
+	if conf.SimpleAddresses {
+		return flowgo.MonotonicEmulator
+	}
+
+	return conf.ChainID
+}
+
+func (conf config) GetServiceKey() emulator.ServiceKey {
+	// set up service key
+	serviceKey := conf.ServiceKey
+	serviceKey.Address = flowsdk.Address(conf.GetChainID().Chain().ServiceAddress())
+	serviceKey.Weight = flowsdk.AccountKeyWeightThreshold
+	return serviceKey
+}
+
+const defaultGenesisTokenSupply = "1000000000.0"
+const defaultScriptGasLimit = 100000
+const defaultTransactionMaxGasLimit = flowgo.DefaultMaxTransactionGasLimit
+
+// defaultConfig is the default configuration for an emulated blockchain.
+var defaultConfig = func() config {
+	genesisTokenSupply, err := cadence.NewUFix64(defaultGenesisTokenSupply)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to parse default genesis token supply: %s", err.Error()))
+	}
+
+	return config{
+		ServiceKey:                   emulator.DefaultServiceKey(),
+		Store:                        nil,
+		SimpleAddresses:              false,
+		GenesisTokenSupply:           genesisTokenSupply,
+		ScriptGasLimit:               defaultScriptGasLimit,
+		TransactionMaxGasLimit:       defaultTransactionMaxGasLimit,
+		MinimumStorageReservation:    fvm.DefaultMinimumStorageReservation,
+		StorageMBPerFLOW:             fvm.DefaultStorageMBPerFLOW,
+		TransactionExpiry:            0, // TODO: replace with sensible default
+		StorageLimitEnabled:          true,
+		Logger:                       zerolog.Nop(),
+		ServerLogger:                 zerolog.Nop(),
+		TransactionValidationEnabled: true,
+		ChainID:                      flowgo.Emulator,
+		CoverageReportingEnabled:     false,
+		AutoMine:                     false,
+	}
+}()
+
 func (b *Blockchain) ReloadBlockchain() error {
 	var err error
 
@@ -426,31 +389,6 @@ func (b *Blockchain) ReloadBlockchain() error {
 	b.transactionValidator = configureTransactionValidator(b.conf, blocks)
 
 	return nil
-}
-
-// NewBlockchain instantiates a new emulated blockchain with the provided options.
-func NewBlockchain(opts ...Option) (*Blockchain, error) {
-
-	// apply options to the default config
-	conf := defaultConfig
-	for _, opt := range opts {
-		opt(&conf)
-	}
-
-	b := &Blockchain{
-		storage:                conf.GetStore(),
-		serviceKey:             conf.GetServiceKey(),
-		debugger:               nil,
-		activeDebuggingSession: false,
-		conf:                   conf,
-	}
-
-	err := b.ReloadBlockchain()
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
-
 }
 
 func (b *Blockchain) EnableAutoMine() {
@@ -793,7 +731,7 @@ func (b *Blockchain) CurrentScript() (string, string) {
 }
 
 // ServiceKey returns the service private key for this blockchain.
-func (b *Blockchain) ServiceKey() ServiceKey {
+func (b *Blockchain) ServiceKey() emulator.ServiceKey {
 	serviceAccount, err := b.getAccount(flowgo.Address(b.serviceKey.Address))
 	if err != nil {
 		return b.serviceKey
@@ -943,7 +881,7 @@ func (b *Blockchain) GetTransactionResult(txID flowgo.Identifier) (*access.Trans
 // GetAccountByIndex returns the account for the given address.
 func (b *Blockchain) GetAccountByIndex(index uint) (*flowgo.Account, error) {
 
-	generator := flowgosdk.NewAddressGenerator(flowgosdk.ChainID(b.vmCtx.Chain.ChainID()))
+	generator := flowsdk.NewAddressGenerator(flowsdk.ChainID(b.vmCtx.Chain.ChainID()))
 
 	generator.SetIndex(index)
 
@@ -1314,7 +1252,7 @@ func (b *Blockchain) GetAccountStorage(
 
 	return types.NewAccountStorage(
 		account,
-		flowgosdk.Address(address),
+		flowsdk.Address(address),
 		extractStorage(common.PathDomainPrivate),
 		extractStorage(common.PathDomainPublic),
 		extractStorage(common.PathDomainStorage),
@@ -1411,7 +1349,7 @@ func (b *Blockchain) ExecuteScriptAtBlockID(script []byte, arguments [][]byte, i
 		return nil, err
 	}
 
-	scriptID := flowgosdk.Identifier(flowgo.MakeIDFromFingerPrint(script))
+	scriptID := flowsdk.Identifier(flowgo.MakeIDFromFingerPrint(script))
 
 	events, err := convert.FlowEventsToSDK(output.Events)
 	if err != nil {
@@ -1537,11 +1475,6 @@ func (b *Blockchain) SetCoverageReport(coverageReport *runtime.CoverageReport) {
 
 func (b *Blockchain) ResetCoverageReport() {
 	b.coverageReportedRuntime.Reset()
-}
-
-func (b *Blockchain) GetTransactionResultByIndex(blockID flowgo.Identifier, index uint32) (*access.TransactionResult, error) {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (b *Blockchain) GetTransactionsByBlockID(blockID flowgo.Identifier) ([]*flowgo.TransactionBody, error) {

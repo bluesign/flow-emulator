@@ -2,8 +2,8 @@ package blockchain_test
 
 import (
 	"context"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/onflow/flow-emulator/convert"
 	"github.com/rs/zerolog"
 	"testing"
@@ -22,7 +22,7 @@ func TestCollections(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := blockchain.NewBlockchain()
+		b, err := blockchain.New()
 		require.NoError(t, err)
 
 		block, err := b.CommitBlock()
@@ -36,15 +36,15 @@ func TestCollections(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := blockchain.NewBlockchain(
+		b, err := blockchain.New(
 			blockchain.WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
 		logger := zerolog.Nop()
-		adapter := adapters.NewSdkAdapter(&logger, b)
+		adapter := adapters.NewSDKAdapter(&logger, b)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		tx1 := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).

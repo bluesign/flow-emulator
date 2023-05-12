@@ -3,8 +3,8 @@ package blockchain_test
 import (
 	"context"
 	"fmt"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/rs/zerolog"
 	"testing"
 
@@ -21,15 +21,15 @@ func TestExecuteScript(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := blockchain.NewBlockchain(
+	b, err := blockchain.New(
 		blockchain.WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
 	logger := zerolog.Nop()
-	adapter := adapters.NewSdkAdapter(&logger, b)
+	adapter := adapters.NewSDKAdapter(&logger, b)
 
-	addTwoScript, counterAddress := deployAndGenerateAddTwoScript(t, adapter)
+	addTwoScript, counterAddress := DeployAndGenerateAddTwoScript(t, adapter)
 
 	tx := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -44,7 +44,7 @@ func TestExecuteScript(t *testing.T) {
 	err = tx.SignEnvelope(b.ServiceKey().Address, b.ServiceKey().Index, signer)
 	require.NoError(t, err)
 
-	callScript := generateGetCounterCountScript(counterAddress, b.ServiceKey().Address)
+	callScript := GenerateGetCounterCountScript(counterAddress, b.ServiceKey().Address)
 
 	// Sample call (value is 0)
 	scriptResult, err := b.ExecuteScript([]byte(callScript), nil)
@@ -57,7 +57,7 @@ func TestExecuteScript(t *testing.T) {
 
 	txResult, err := b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, txResult)
+	AssertTransactionSucceeded(t, txResult)
 
 	t.Run("BeforeCommit", func(t *testing.T) {
 		t.Skip("TODO: fix stored ledger")
@@ -87,7 +87,7 @@ func TestExecuteScript_WithArguments(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := blockchain.NewBlockchain()
+		b, err := blockchain.New()
 		require.NoError(t, err)
 
 		scriptWithArgs := `
@@ -109,7 +109,7 @@ func TestExecuteScript_WithArguments(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := blockchain.NewBlockchain()
+		b, err := blockchain.New()
 		require.NoError(t, err)
 
 		scriptWithArgs := `
@@ -131,7 +131,7 @@ func TestExecuteScript_FlowServiceAccountBalance(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := blockchain.NewBlockchain()
+	b, err := blockchain.New()
 	require.NoError(t, err)
 
 	code := fmt.Sprintf(
@@ -157,7 +157,7 @@ func TestInfiniteScript(t *testing.T) {
 	t.Parallel()
 
 	const limit = 1000
-	b, err := blockchain.NewBlockchain(
+	b, err := blockchain.New(
 		blockchain.WithScriptGasLimit(limit),
 	)
 	require.NoError(t, err)

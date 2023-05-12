@@ -21,7 +21,7 @@ package access
 import (
 	"context"
 	"fmt"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
+	"github.com/onflow/flow-emulator/adapters"
 	"net"
 	"net/http"
 	"os"

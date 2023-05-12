@@ -12,7 +12,7 @@ func TestRuntimeLogs(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := blockchain.NewBlockchain()
+	b, err := blockchain.New()
 	require.NoError(t, err)
 
 	script := []byte(`

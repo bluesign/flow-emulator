@@ -21,7 +21,7 @@ package debugger
 import (
 	"bufio"
 	"fmt"
-	emulator "github.com/onflow/flow-emulator/blockchain"
+	"github.com/onflow/flow-emulator/emulator"
 	"io"
 	"net"
 	"sync"

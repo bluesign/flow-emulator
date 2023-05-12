@@ -20,7 +20,7 @@ package access
 
 import (
 	"fmt"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
+	"github.com/onflow/flow-emulator/adapters"
 	mockModule "github.com/onflow/flow-go/module/mock"
 	"net"
 

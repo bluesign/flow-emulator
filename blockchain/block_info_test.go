@@ -21,8 +21,8 @@ package blockchain_test
 import (
 	"context"
 	"fmt"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/rs/zerolog"
 	"testing"
 
@@ -36,11 +36,11 @@ func TestBlockInfo(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := blockchain.NewBlockchain()
+	b, err := blockchain.New()
 	require.NoError(t, err)
 
 	logger := zerolog.Nop()
-	adapter := adapters.NewSdkAdapter(&logger, b)
+	adapter := adapters.NewSDKAdapter(&logger, b)
 
 	block1, err := b.CommitBlock()
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestBlockInfo(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		require.Len(t, result.Logs, 2)
 		assert.Equal(t, fmt.Sprintf("Block(height: %v, view: %v, id: 0x%x, timestamp: %.8f)", block2.Header.Height+1,

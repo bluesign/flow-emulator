@@ -3,8 +3,8 @@ package blockchain_test
 import (
 	"context"
 	"fmt"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/rs/zerolog"
 	"testing"
 
@@ -28,7 +28,7 @@ func TestEventEmitted(t *testing.T) {
 
 		// Emitting events in scripts is not supported
 
-		b, err := blockchain.NewBlockchain()
+		b, err := blockchain.New()
 		require.NoError(t, err)
 
 		script := []byte(`
@@ -49,13 +49,13 @@ func TestEventEmitted(t *testing.T) {
 
 		t.Parallel()
 
-		b, err := blockchain.NewBlockchain(
+		b, err := blockchain.New(
 			blockchain.WithStorageLimitEnabled(false),
 		)
 		require.NoError(t, err)
 
 		logger := zerolog.Nop()
-		adapter := adapters.NewSdkAdapter(&logger, b)
+		adapter := adapters.NewSDKAdapter(&logger, b)
 
 		accountContracts := []templates.Contract{
 			{

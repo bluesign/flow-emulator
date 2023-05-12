@@ -21,8 +21,8 @@ package blockchain_test
 import (
 	"context"
 	"fmt"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/rs/zerolog"
 	"testing"
 
@@ -62,7 +62,7 @@ const counterScript = `
 
 // generateAddTwoToCounterScript generates a script that increments a counter.
 // If no counter exists, it is created.
-func generateAddTwoToCounterScript(counterAddress flowsdk.Address) string {
+func GenerateAddTwoToCounterScript(counterAddress flowsdk.Address) string {
 	return fmt.Sprintf(
 		`
             import 0x%s
@@ -83,7 +83,7 @@ func generateAddTwoToCounterScript(counterAddress flowsdk.Address) string {
 	)
 }
 
-func deployAndGenerateAddTwoScript(t *testing.T, adapter *adapters.SDKAdapter) (string, flowsdk.Address) {
+func DeployAndGenerateAddTwoScript(t *testing.T, adapter *adapters.SDKAdapter) (string, flowsdk.Address) {
 
 	contracts := []templates.Contract{
 		{
@@ -99,10 +99,10 @@ func deployAndGenerateAddTwoScript(t *testing.T, adapter *adapters.SDKAdapter) (
 	)
 	require.NoError(t, err)
 
-	return generateAddTwoToCounterScript(counterAddress), counterAddress
+	return GenerateAddTwoToCounterScript(counterAddress), counterAddress
 }
 
-func generateGetCounterCountScript(counterAddress flowsdk.Address, accountAddress flowsdk.Address) string {
+func GenerateGetCounterCountScript(counterAddress flowsdk.Address, accountAddress flowsdk.Address) string {
 	return fmt.Sprintf(
 		`
             import 0x%s
@@ -116,17 +116,17 @@ func generateGetCounterCountScript(counterAddress flowsdk.Address, accountAddres
 	)
 }
 
-func assertTransactionSucceeded(t *testing.T, result *types.TransactionResult) {
+func AssertTransactionSucceeded(t *testing.T, result *types.TransactionResult) {
 	if !assert.True(t, result.Succeeded()) {
 		t.Error(result.Error)
 	}
 }
 
-func lastCreatedAccount(b *blockchain.Blockchain, result *types.TransactionResult) (*flowsdk.Account, error) {
+func LastCreatedAccount(b *blockchain.Blockchain, result *types.TransactionResult) (*flowsdk.Account, error) {
 	logger := zerolog.Nop()
-	adapter := adapters.NewSdkAdapter(&logger, b)
+	adapter := adapters.NewSDKAdapter(&logger, b)
 
-	address, err := lastCreatedAccountAddress(result)
+	address, err := LastCreatedAccountAddress(result)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func lastCreatedAccount(b *blockchain.Blockchain, result *types.TransactionResul
 	return adapter.GetAccount(context.Background(), address)
 }
 
-func lastCreatedAccountAddress(result *types.TransactionResult) (flowsdk.Address, error) {
+func LastCreatedAccountAddress(result *types.TransactionResult) (flowsdk.Address, error) {
 	for _, event := range result.Events {
 		if event.Type == flowsdk.EventAccountCreated {
 			return flowsdk.Address(event.Value.Fields[0].(cadence.Address)), nil

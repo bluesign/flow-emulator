@@ -2,8 +2,8 @@ package blockchain_test
 
 import (
 	"context"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/onflow/flow-emulator/types"
 	"github.com/rs/zerolog"
 	"testing"
@@ -21,14 +21,14 @@ func setupPendingBlockTests(t *testing.T) (
 	*flowsdk.Transaction,
 	*flowsdk.Transaction,
 ) {
-	b, err := blockchain.NewBlockchain(
+	b, err := blockchain.New(
 		blockchain.WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 	logger := zerolog.Nop()
-	adapter := adapters.NewSdkAdapter(&logger, b)
+	adapter := adapters.NewSDKAdapter(&logger, b)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+	addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -150,7 +150,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		// Execute invalid script tx (reverts)
 		result, err = b.ExecuteNextTransaction()
@@ -209,7 +209,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 first (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		// Execute rest of tx in pending block (tx2, invalid)
 		results, err := b.ExecuteBlock()
@@ -240,7 +240,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 first (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		// Attempt to add tx2 to pending block after execution begins
 		err = adapter.SendTransaction(context.Background(), *tx2)
@@ -267,7 +267,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 first (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		// Attempt to commit block before execution finishes
 		_, err = b.CommitBlock()
@@ -290,7 +290,7 @@ func TestPendingBlockDuringExecution(t *testing.T) {
 		// Execute tx1 (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		// Attempt to execute nonexistent next tx (fails)
 		_, err = b.ExecuteNextTransaction()
@@ -309,15 +309,15 @@ func TestPendingBlockCommit(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := blockchain.NewBlockchain(
+	b, err := blockchain.New(
 		blockchain.WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
 	logger := zerolog.Nop()
-	adapter := adapters.NewSdkAdapter(&logger, b)
+	adapter := adapters.NewSDKAdapter(&logger, b)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+	addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 	t.Run("CommitBlock", func(t *testing.T) {
 		tx1 := flowsdk.NewTransaction().
@@ -343,7 +343,7 @@ func TestPendingBlockCommit(t *testing.T) {
 		// Execute tx1 (succeeds)
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		// Commit pending block
 		block, err := b.CommitBlock()

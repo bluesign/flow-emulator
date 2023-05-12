@@ -19,8 +19,8 @@ package blockchain_test
 
 import (
 	"context"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	flowgo "github.com/onflow/flow-go/model/flow"
 	"github.com/rs/zerolog"
 	"testing"
@@ -35,13 +35,13 @@ func setupAccountStorageTests(t *testing.T) (
 	*blockchain.Blockchain,
 	*adapters.SDKAdapter,
 ) {
-	b, err := blockchain.NewBlockchain(
+	b, err := blockchain.New(
 		blockchain.WithStorageLimitEnabled(false),
 	)
 	require.NoError(t, err)
 
 	logger := zerolog.Nop()
-	return b, adapters.NewSdkAdapter(&logger, b)
+	return b, adapters.NewSDKAdapter(&logger, b)
 }
 
 func TestStorageTransaction(t *testing.T) {

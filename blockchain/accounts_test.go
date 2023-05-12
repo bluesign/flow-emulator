@@ -21,8 +21,8 @@ package blockchain_test
 import (
 	"context"
 	"fmt"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/rs/zerolog"
 	"testing"
 
@@ -42,13 +42,13 @@ func setupAccountTests(t *testing.T, opts ...blockchain.Option) (
 	*blockchain.Blockchain,
 	*adapters.SDKAdapter,
 ) {
-	b, err := blockchain.NewBlockchain(
+	b, err := blockchain.New(
 		opts...,
 	)
 	require.NoError(t, err)
 
 	logger := zerolog.Nop()
-	return b, adapters.NewSdkAdapter(&logger, b)
+	return b, adapters.NewSDKAdapter(&logger, b)
 }
 
 func TestGetAccount(t *testing.T) {
@@ -153,7 +153,7 @@ func TestGetAccount(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		bl, err := b.CommitBlock()
 		assert.NoError(t, err)
@@ -205,12 +205,12 @@ func TestCreateAccount(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		_, err = b.CommitBlock()
 		assert.NoError(t, err)
 
-		account, err := lastCreatedAccount(b, result)
+		account, err := LastCreatedAccount(b, result)
 		require.NoError(t, err)
 
 		assert.Equal(t, "0000000000000005", account.Address.Hex())
@@ -247,12 +247,12 @@ func TestCreateAccount(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		_, err = b.CommitBlock()
 		assert.NoError(t, err)
 
-		account, err := lastCreatedAccount(b, result)
+		account, err := LastCreatedAccount(b, result)
 		require.NoError(t, err)
 
 		require.Len(t, account.Keys, 1)
@@ -288,12 +288,12 @@ func TestCreateAccount(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		require.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		_, err = b.CommitBlock()
 		assert.NoError(t, err)
 
-		account, err := lastCreatedAccount(b, result)
+		account, err := LastCreatedAccount(b, result)
 		require.NoError(t, err)
 
 		require.Len(t, account.Keys, 2)
@@ -337,12 +337,12 @@ func TestCreateAccount(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		require.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		_, err = b.CommitBlock()
 		assert.NoError(t, err)
 
-		account, err := lastCreatedAccount(b, result)
+		account, err := LastCreatedAccount(b, result)
 		require.NoError(t, err)
 
 		require.Len(t, account.Keys, 2)
@@ -409,12 +409,12 @@ func TestCreateAccount(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		require.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		_, err = b.CommitBlock()
 		assert.NoError(t, err)
 
-		account, err := lastCreatedAccount(b, result)
+		account, err := LastCreatedAccount(b, result)
 		require.NoError(t, err)
 
 		require.Len(t, account.Keys, 1)
@@ -460,12 +460,12 @@ func TestCreateAccount(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		require.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		_, err = b.CommitBlock()
 		assert.NoError(t, err)
 
-		account, err := lastCreatedAccount(b, result)
+		account, err := LastCreatedAccount(b, result)
 		require.NoError(t, err)
 
 		assert.Empty(t, account.Keys)
@@ -511,7 +511,7 @@ func TestCreateAccount(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		require.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		block, err := b.CommitBlock()
 		require.NoError(t, err)
@@ -669,7 +669,7 @@ func TestAddAccountKey(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		_, err = b.CommitBlock()
 		assert.NoError(t, err)
@@ -693,7 +693,7 @@ func TestAddAccountKey(t *testing.T) {
 
 		result, err = b.ExecuteNextTransaction()
 		require.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		_, err = b.CommitBlock()
 		assert.NoError(t, err)
@@ -759,7 +759,7 @@ func TestRemoveAccountKey(t *testing.T) {
 
 	result, err := b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
@@ -790,7 +790,7 @@ func TestRemoveAccountKey(t *testing.T) {
 
 	result, err = b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
@@ -855,7 +855,7 @@ func TestRemoveAccountKey(t *testing.T) {
 
 	result, err = b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
@@ -946,7 +946,7 @@ func TestUpdateAccountCode(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		require.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		_, err = b.CommitBlock()
 		assert.NoError(t, err)
@@ -1069,7 +1069,7 @@ func TestImportAccountCode(t *testing.T) {
 
 	result, err := b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 }
 
 func TestAccountAccess(t *testing.T) {
@@ -1148,7 +1148,7 @@ func TestAccountAccess(t *testing.T) {
 
 	result, err := b.ExecuteNextTransaction()
 	require.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	require.NoError(t, err)

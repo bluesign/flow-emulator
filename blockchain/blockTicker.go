@@ -19,17 +19,18 @@
 package blockchain
 
 import (
+	"github.com/onflow/flow-emulator/emulator"
 	"time"
 )
 
 type BlocksTicker struct {
-	emulator Emulator
+	emulator emulator.Emulator
 	ticker   *time.Ticker
 	done     chan bool
 }
 
 func NewBlocksTicker(
-	emulator Emulator,
+	emulator emulator.Emulator,
 	blockTime time.Duration,
 ) *BlocksTicker {
 	return &BlocksTicker{

@@ -20,8 +20,8 @@ package utils
 
 import (
 	"encoding/json"
-	emulator "github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
+	"github.com/onflow/flow-emulator/adapters"
+	"github.com/onflow/flow-emulator/emulator"
 	flowgo "github.com/onflow/flow-go/model/flow"
 	"net/http"
 	"strconv"

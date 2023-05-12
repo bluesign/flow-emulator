@@ -22,7 +22,7 @@ import (
 	"context"
 	"fmt"
 	jsoncdc "github.com/onflow/cadence/encoding/json"
-	"github.com/onflow/flow-emulator/blockchain"
+	"github.com/onflow/flow-emulator/emulator"
 	"github.com/onflow/flow-emulator/types"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc/codes"
@@ -37,11 +37,11 @@ var _ access.API = &AccessAdapter{}
 // AccessAdapter wraps the emulator adapters to be compatible with access.API.
 type AccessAdapter struct {
 	logger   *zerolog.Logger
-	emulator blockchain.Emulator
+	emulator emulator.Emulator
 }
 
 // NewAccessAdapter returns a new AccessAdapter.
-func NewAccessAdapter(logger *zerolog.Logger, emulator blockchain.Emulator) *AccessAdapter {
+func NewAccessAdapter(logger *zerolog.Logger, emulator emulator.Emulator) *AccessAdapter {
 	return &AccessAdapter{
 		logger:   logger,
 		emulator: emulator,
@@ -258,11 +258,14 @@ func (a *AccessAdapter) GetExecutionResultByID(_ context.Context, _ flowgo.Ident
 }
 
 func (a *AccessAdapter) GetTransactionResultByIndex(_ context.Context, blockID flowgo.Identifier, index uint32) (*access.TransactionResult, error) {
-	result, err := a.emulator.GetTransactionResultByIndex(blockID, index)
+	results, err := a.emulator.GetTransactionResultsByBlockID(blockID)
 	if err != nil {
 		return nil, convertError(err)
 	}
-	return result, nil
+	if len(results) < int(index) {
+		return nil, convertError(&types.TransactionNotFoundError{ID: flowgo.Identifier{}})
+	}
+	return results[index], nil
 }
 
 func (a *AccessAdapter) GetTransactionsByBlockID(_ context.Context, blockID flowgo.Identifier) ([]*flowgo.TransactionBody, error) {

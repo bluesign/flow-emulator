@@ -3,8 +3,8 @@ package blockchain_test
 import (
 	"context"
 	"fmt"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/onflow/flow-emulator/convert"
 	"github.com/rs/zerolog"
 	"os"
@@ -34,9 +34,9 @@ func TestInitialization(t *testing.T) {
 		require.Nil(t, err)
 		defer store.Close()
 
-		b, _ := blockchain.NewBlockchain(blockchain.WithStore(store))
+		b, _ := blockchain.New(blockchain.WithStore(store))
 		logger := zerolog.Nop()
-		adapter := adapters.NewSdkAdapter(&logger, b)
+		adapter := adapters.NewSDKAdapter(&logger, b)
 
 		serviceAcct, err := adapter.GetAccount(context.Background(), flowsdk.ServiceAddress(flowsdk.Emulator))
 		require.NoError(t, err)
@@ -63,9 +63,9 @@ func TestInitialization(t *testing.T) {
 		require.Nil(t, err)
 		defer store.Close()
 
-		b, _ := blockchain.NewBlockchain(blockchain.WithStore(store), blockchain.WithStorageLimitEnabled(false))
+		b, _ := blockchain.New(blockchain.WithStore(store), blockchain.WithStorageLimitEnabled(false))
 		logger := zerolog.Nop()
-		adapter := adapters.NewSdkAdapter(&logger, b)
+		adapter := adapters.NewSDKAdapter(&logger, b)
 
 		contracts := []templates.Contract{
 			{
@@ -129,8 +129,8 @@ func TestInitialization(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a new blockchain with the same store
-		b, _ = blockchain.NewBlockchain(blockchain.WithStore(store))
-		adapter = adapters.NewSdkAdapter(&logger, b)
+		b, _ = blockchain.New(blockchain.WithStore(store))
+		adapter = adapters.NewSDKAdapter(&logger, b)
 
 		t.Run("should be able to read blocks", func(t *testing.T) {
 			latestBlock, _, err := adapter.GetLatestBlock(context.Background(), true)

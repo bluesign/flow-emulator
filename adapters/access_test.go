@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/golang/mock/gomock"
 	"github.com/onflow/cadence"
-	"github.com/onflow/flow-emulator/blockchain/mocks"
+	"github.com/onflow/flow-emulator/emulator/mocks"
 	"github.com/onflow/flow-emulator/types"
 	"github.com/onflow/flow-go/access"
 	flowgo "github.com/onflow/flow-go/model/flow"
@@ -565,23 +565,24 @@ func TestAccess(t *testing.T) {
 	t.Run("GetTransactionResultByIndex", accessTest(func(t *testing.T, adapter *AccessAdapter, emu *mocks.MockEmulator) {
 
 		blockID := flowgo.Identifier{}
-		index := uint32(42)
+		index := uint32(0)
 
-		expected := access.TransactionResult{}
+		txResult := &access.TransactionResult{}
+		expected := []*access.TransactionResult{txResult}
 
 		//success
 		emu.EXPECT().
-			GetTransactionResultByIndex(blockID, index).
-			Return(&expected, nil).
+			GetTransactionResultsByBlockID(blockID).
+			Return(expected, nil).
 			Times(1)
 
 		result, err := adapter.GetTransactionResultByIndex(context.Background(), blockID, index)
-		assert.Equal(t, expected, *result)
+		assert.Equal(t, txResult, result)
 		assert.NoError(t, err)
 
 		//fail
 		emu.EXPECT().
-			GetTransactionResultByIndex(blockID, index).
+			GetTransactionResultsByBlockID(blockID).
 			Return(nil, fmt.Errorf("some error")).
 			Times(1)
 

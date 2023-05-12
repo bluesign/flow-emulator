@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/onflow/flow-emulator/blockchain"
+	"github.com/onflow/flow-emulator/emulator"
 	"os"
 	"strings"
 	"sync"
@@ -33,7 +34,7 @@ const (
 
 type session struct {
 	logger                *zerolog.Logger
-	emulator              blockchain.Emulator
+	emulator              emulator.Emulator
 	readWriter            *bufio.ReadWriter
 	variables             map[int]any
 	variableHandleCounter int

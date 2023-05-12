@@ -21,8 +21,8 @@ package blockchain_test
 import (
 	"context"
 	"fmt"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/rs/zerolog"
 	"testing"
 
@@ -36,16 +36,16 @@ func TestCommitBlock(t *testing.T) {
 
 	t.Parallel()
 
-	b, err := blockchain.NewBlockchain(
+	b, err := blockchain.New(
 		blockchain.WithStorageLimitEnabled(false),
 	)
 
 	require.NoError(t, err)
 
 	logger := zerolog.Nop()
-	adapter := adapters.NewSdkAdapter(&logger, b)
+	adapter := adapters.NewSDKAdapter(&logger, b)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+	addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -121,11 +121,11 @@ func TestBlockView(t *testing.T) {
 
 	const nBlocks = 3
 
-	b, err := blockchain.NewBlockchain()
+	b, err := blockchain.New()
 	require.NoError(t, err)
 
 	logger := zerolog.Nop()
-	adapter := adapters.NewSdkAdapter(&logger, b)
+	adapter := adapters.NewSDKAdapter(&logger, b)
 
 	t.Run("genesis should have 0 view", func(t *testing.T) {
 		block, err := b.GetBlockByHeight(0)
@@ -134,7 +134,7 @@ func TestBlockView(t *testing.T) {
 		assert.Equal(t, uint64(0), block.Header.View)
 	})
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+	addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 	// create a few blocks, each with one transaction
 	for i := 0; i < nBlocks; i++ {

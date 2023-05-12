@@ -19,7 +19,7 @@
 package main
 
 import (
-	emulator "github.com/onflow/flow-emulator/blockchain"
+	emulator "github.com/onflow/flow-emulator/emulator"
 	"github.com/onflow/flow-go-sdk/crypto"
 
 	"github.com/onflow/flow-emulator/cmd/emulator/start"

@@ -20,9 +20,10 @@ package server
 
 import (
 	"fmt"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/onflow/flow-emulator/blockchain/contracts"
+	"github.com/onflow/flow-emulator/emulator"
 	"github.com/onflow/flow-emulator/server/access"
 	"github.com/onflow/flow-emulator/server/utils"
 	"os"
@@ -47,7 +48,7 @@ import (
 type EmulatorServer struct {
 	logger        *zerolog.Logger
 	config        *Config
-	emulator      blockchain.Emulator
+	emulator      emulator.Emulator
 	accessAdapter *adapters.AccessAdapter
 	group         *graceland.Group
 	liveness      graceland.Routine
@@ -279,7 +280,7 @@ func (s *EmulatorServer) Start() {
 
 	s.Stop()
 }
-func (s *EmulatorServer) Emulator() blockchain.Emulator {
+func (s *EmulatorServer) Emulator() emulator.Emulator {
 	return s.emulator
 }
 
@@ -390,7 +391,7 @@ func configureBlockchain(logger *zerolog.Logger, conf *Config, store storage.Sto
 		)
 	}
 
-	emulatedBlockchain, err := blockchain.NewBlockchain(options...)
+	emulatedBlockchain, err := blockchain.New(options...)
 	if err != nil {
 		return nil, err
 	}

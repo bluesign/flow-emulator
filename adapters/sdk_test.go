@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/golang/mock/gomock"
 	"github.com/onflow/cadence"
-	"github.com/onflow/flow-emulator/blockchain/mocks"
 	"github.com/onflow/flow-emulator/convert"
+	"github.com/onflow/flow-emulator/emulator/mocks"
 	"github.com/onflow/flow-emulator/types"
 	flowgosdk "github.com/onflow/flow-go-sdk"
 	"github.com/onflow/flow-go/access"
@@ -23,7 +23,7 @@ func sdkTest(f func(t *testing.T, adapter *SDKAdapter, emu *mocks.MockEmulator))
 
 		emu := mocks.NewMockEmulator(mockCtrl)
 		logger := zerolog.Nop()
-		back := NewSdkAdapter(&logger, emu)
+		back := NewSDKAdapter(&logger, emu)
 
 		f(t, back, emu)
 	}
@@ -638,39 +638,6 @@ func TestSDK(t *testing.T) {
 			Times(1)
 
 		result, err = adapter.GetEventsForBlockIDs(context.Background(), eventType, blockIDs)
-		assert.Nil(t, result)
-		assert.Error(t, err)
-
-	}))
-
-	t.Run("GetTransactionResultByIndex", sdkTest(func(t *testing.T, adapter *SDKAdapter, emu *mocks.MockEmulator) {
-
-		blockID := flowgosdk.Identifier{}
-		index := uint32(42)
-
-		expected := flowgosdk.TransactionResult{
-			Events: []flowgosdk.Event{},
-		}
-
-		flowResults := access.TransactionResult{}
-
-		//success
-		emu.EXPECT().
-			GetTransactionResultByIndex(convert.SDKIdentifierToFlow(blockID), index).
-			Return(&flowResults, nil).
-			Times(1)
-
-		result, err := adapter.GetTransactionResultByIndex(context.Background(), blockID, index)
-		assert.Equal(t, expected, *result)
-		assert.NoError(t, err)
-
-		//fail
-		emu.EXPECT().
-			GetTransactionResultByIndex(convert.SDKIdentifierToFlow(blockID), index).
-			Return(nil, fmt.Errorf("some error")).
-			Times(1)
-
-		result, err = adapter.GetTransactionResultByIndex(context.Background(), blockID, index)
 		assert.Nil(t, result)
 		assert.Error(t, err)
 

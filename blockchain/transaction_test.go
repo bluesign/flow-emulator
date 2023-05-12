@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/onflow/flow-emulator/adapters"
 	"github.com/onflow/flow-emulator/blockchain"
-	"github.com/onflow/flow-emulator/blockchain/adapters"
 	"github.com/onflow/flow-emulator/convert"
 	"io"
 	"strings"
@@ -35,11 +35,11 @@ func setupTransactionTests(t *testing.T, opts ...blockchain.Option) (
 	*blockchain.Blockchain,
 	*adapters.SDKAdapter,
 ) {
-	b, err := blockchain.NewBlockchain(opts...)
+	b, err := blockchain.New(opts...)
 	require.NoError(t, err)
 
 	logger := zerolog.Nop()
-	return b, adapters.NewSdkAdapter(&logger, b)
+	return b, adapters.NewSDKAdapter(&logger, b)
 }
 
 func TestSubmitTransaction(t *testing.T) {
@@ -48,7 +48,7 @@ func TestSubmitTransaction(t *testing.T) {
 
 	b, adapter := setupTransactionTests(t)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+	addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -70,7 +70,7 @@ func TestSubmitTransaction(t *testing.T) {
 	// Execute tx1
 	result, err := b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
@@ -164,7 +164,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		// Create transaction with no GasLimit field
 		tx := flowsdk.NewTransaction().
@@ -192,7 +192,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		// Create transaction with no PayerAccount field
 		tx := flowsdk.NewTransaction().
@@ -220,7 +220,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		// Create transaction with no PayerAccount field
 		tx := flowsdk.NewTransaction().
@@ -249,7 +249,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		invalidSequenceNumber := b.ServiceKey().SequenceNumber + 2137
 		tx := flowsdk.NewTransaction().
@@ -293,7 +293,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		tx := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
@@ -321,7 +321,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		expiredBlock, err := b.GetLatestBlock()
 		require.NoError(t, err)
@@ -358,7 +358,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		invalidSigner, err := crypto.NewNaiveSigner(b.ServiceKey().PrivateKey, crypto.SHA2_256)
 		require.NoError(t, err)
@@ -456,7 +456,7 @@ func TestSubmitTransaction_Invalid(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		tx := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
@@ -509,7 +509,7 @@ func TestSubmitTransaction_Duplicate(t *testing.T) {
 		blockchain.WithStorageLimitEnabled(false),
 	)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+	addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 	tx := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -530,7 +530,7 @@ func TestSubmitTransaction_Duplicate(t *testing.T) {
 
 	result, err := b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
@@ -678,7 +678,7 @@ func TestSubmitTransaction_EnvelopeSignature(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		tx := flowsdk.NewTransaction().
 			SetScript([]byte(addTwoScript)).
@@ -809,7 +809,7 @@ func TestSubmitTransaction_EnvelopeSignature(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		// use key that does not exist on service account
 		invalidKey, _ := crypto.GeneratePrivateKey(crypto.ECDSA_P256,
@@ -894,7 +894,7 @@ func TestSubmitTransaction_EnvelopeSignature(t *testing.T) {
 			result, err := b.ExecuteNextTransaction()
 			assert.NoError(t, err)
 
-			assertTransactionSucceeded(t, result)
+			AssertTransactionSucceeded(t, result)
 		})
 	})
 }
@@ -912,7 +912,7 @@ func TestSubmitTransaction_PayloadSignatures(t *testing.T) {
 			blockchain.WithStorageLimitEnabled(false),
 		)
 
-		addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+		addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 		// create a new account,
 		// authorizer must be different from payer
@@ -995,7 +995,7 @@ func TestSubmitTransaction_PayloadSignatures(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		require.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		assert.Contains(t,
 			result.Logs,
@@ -1182,7 +1182,7 @@ func TestSubmitTransaction_Arguments(t *testing.T) {
 
 			result, err := b.ExecuteNextTransaction()
 			require.NoError(t, err)
-			assertTransactionSucceeded(t, result)
+			AssertTransactionSucceeded(t, result)
 
 			assert.Len(t, result.Logs, 1)
 		})
@@ -1221,7 +1221,7 @@ func TestSubmitTransaction_Arguments(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		require.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		require.Len(t, result.Logs, 1)
 		assert.Equal(t, "42", result.Logs[0])
@@ -1266,7 +1266,7 @@ func TestSubmitTransaction_ProposerSequence(t *testing.T) {
 
 		result, err := b.ExecuteNextTransaction()
 		assert.NoError(t, err)
-		assertTransactionSucceeded(t, result)
+		AssertTransactionSucceeded(t, result)
 
 		_, err = b.CommitBlock()
 		assert.NoError(t, err)
@@ -1335,7 +1335,7 @@ func TestGetTransaction(t *testing.T) {
 		blockchain.WithStorageLimitEnabled(false),
 	)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+	addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -1355,7 +1355,7 @@ func TestGetTransaction(t *testing.T) {
 
 	result, err := b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	t.Run("Nonexistent", func(t *testing.T) {
 		_, err := adapter.GetTransaction(context.Background(), flowsdk.EmptyID)
@@ -1381,7 +1381,7 @@ func TestGetTransactionResult(t *testing.T) {
 		blockchain.WithStorageLimitEnabled(false),
 	)
 
-	addTwoScript, counterAddress := deployAndGenerateAddTwoScript(t, adapter)
+	addTwoScript, counterAddress := DeployAndGenerateAddTwoScript(t, adapter)
 
 	tx := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -1501,7 +1501,7 @@ func TestHelloWorld_NewAccount(t *testing.T) {
 
 	result, err := b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
@@ -1551,7 +1551,7 @@ func TestHelloWorld_NewAccount(t *testing.T) {
 
 	result, err = b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
@@ -1601,7 +1601,7 @@ func TestHelloWorld_UpdateAccount(t *testing.T) {
 
 	result, err := b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
@@ -1652,7 +1652,7 @@ func TestHelloWorld_UpdateAccount(t *testing.T) {
 
 	result, err = b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
@@ -1676,7 +1676,7 @@ func TestHelloWorld_UpdateAccount(t *testing.T) {
 
 	result, err = b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)
@@ -1752,7 +1752,7 @@ func TestSubmitTransactionWithCustomLogger(t *testing.T) {
 		blockchain.WithTransactionFeesEnabled(true),
 	)
 
-	addTwoScript, _ := deployAndGenerateAddTwoScript(t, adapter)
+	addTwoScript, _ := DeployAndGenerateAddTwoScript(t, adapter)
 
 	tx1 := flowsdk.NewTransaction().
 		SetScript([]byte(addTwoScript)).
@@ -1774,7 +1774,7 @@ func TestSubmitTransactionWithCustomLogger(t *testing.T) {
 	// Execute tx1
 	result, err := b.ExecuteNextTransaction()
 	assert.NoError(t, err)
-	assertTransactionSucceeded(t, result)
+	AssertTransactionSucceeded(t, result)
 
 	_, err = b.CommitBlock()
 	assert.NoError(t, err)

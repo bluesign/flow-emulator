@@ -44,7 +44,7 @@ generate: generate-mocks
 
 .PHONY: generate-mocks
 generate-mocks:
-	GO111MODULE=on ${GOPATH}/bin/mockgen -destination=blockchain/mocks/emulator.go -package=mocks github.com/onflow/flow-emulator/blockchain Emulator
+	GO111MODULE=on ${GOPATH}/bin/mockgen -destination=emulator/mocks/emulator.go -package=mocks github.com/onflow/flow-emulator/emulator Emulator
 	GO111MODULE=on ${GOPATH}/bin/mockgen -destination=storage/mocks/store.go -package=mocks github.com/onflow/flow-emulator/storage Store
 
 .PHONY: ci

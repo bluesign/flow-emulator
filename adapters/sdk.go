@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"github.com/onflow/cadence"
 	jsoncdc "github.com/onflow/cadence/encoding/json"
-	"github.com/onflow/flow-emulator/blockchain"
 	"github.com/onflow/flow-emulator/convert"
+	emulator2 "github.com/onflow/flow-emulator/emulator"
 	emulator "github.com/onflow/flow-emulator/types"
 	sdk "github.com/onflow/flow-go-sdk"
 	"github.com/onflow/flow-go-sdk/templates"
@@ -38,7 +38,7 @@ import (
 // required by the Access API.
 type SDKAdapter struct {
 	logger   *zerolog.Logger
-	emulator blockchain.Emulator
+	emulator emulator2.Emulator
 }
 
 func (b *SDKAdapter) EnableAutoMine() {
@@ -48,12 +48,12 @@ func (b *SDKAdapter) DisableAutoMine() {
 	b.emulator.DisableAutoMine()
 }
 
-func (b *SDKAdapter) Emulator() blockchain.Emulator {
+func (b *SDKAdapter) Emulator() emulator2.Emulator {
 	return b.emulator
 }
 
-// NewSdkAdapter returns a new SDKAdapter.
-func NewSdkAdapter(logger *zerolog.Logger, emulator blockchain.Emulator) *SDKAdapter {
+// NewSDKAdapter returns a new SDKAdapter.
+func NewSDKAdapter(logger *zerolog.Logger, emulator emulator2.Emulator) *SDKAdapter {
 	return &SDKAdapter{
 		logger:   logger,
 		emulator: emulator,
@@ -359,14 +359,6 @@ func (b *SDKAdapter) GetLatestProtocolStateSnapshot(_ context.Context) ([]byte, 
 
 func (b *SDKAdapter) GetExecutionResultForBlockID(_ context.Context, _ sdk.Identifier) (*sdk.ExecutionResult, error) {
 	return nil, nil
-}
-
-func (b *SDKAdapter) GetTransactionResultByIndex(ctx context.Context, id sdk.Identifier, index uint32) (*sdk.TransactionResult, error) {
-	transactionResult, err := b.emulator.GetTransactionResultByIndex(convert.SDKIdentifierToFlow(id), index)
-	if err != nil {
-		return nil, err
-	}
-	return convert.FlowTransactionResultToSDK(transactionResult)
 }
 
 func (b *SDKAdapter) GetTransactionsByBlockID(ctx context.Context, id sdk.Identifier) ([]*sdk.Transaction, error) {

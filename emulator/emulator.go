@@ -16,16 +16,82 @@
  * limitations under the License.
  */
 
-package blockchain
+package emulator
 
 import (
+	"fmt"
 	"github.com/onflow/cadence/runtime"
 	"github.com/onflow/cadence/runtime/interpreter"
+	flowgosdk "github.com/onflow/flow-go-sdk"
+	sdkcrypto "github.com/onflow/flow-go-sdk/crypto"
 	"github.com/onflow/flow-go/access"
 	flowgo "github.com/onflow/flow-go/model/flow"
 
 	"github.com/onflow/flow-emulator/types"
 )
+
+type ServiceKey struct {
+	Index          int
+	Address        flowgosdk.Address
+	SequenceNumber uint64
+	PrivateKey     sdkcrypto.PrivateKey
+	PublicKey      sdkcrypto.PublicKey
+	HashAlgo       sdkcrypto.HashAlgorithm
+	SigAlgo        sdkcrypto.SignatureAlgorithm
+	Weight         int
+}
+
+const defaultServiceKeyPrivateKeySeed = "elephant ears space cowboy octopus rodeo potato cannon pineapple"
+const DefaultServiceKeySigAlgo = sdkcrypto.ECDSA_P256
+const DefaultServiceKeyHashAlgo = sdkcrypto.SHA3_256
+
+func DefaultServiceKey() ServiceKey {
+	return GenerateDefaultServiceKey(DefaultServiceKeySigAlgo, DefaultServiceKeyHashAlgo)
+}
+
+func GenerateDefaultServiceKey(
+	sigAlgo sdkcrypto.SignatureAlgorithm,
+	hashAlgo sdkcrypto.HashAlgorithm,
+) ServiceKey {
+	privateKey, err := sdkcrypto.GeneratePrivateKey(
+		sigAlgo,
+		[]byte(defaultServiceKeyPrivateKeySeed),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to generate default service key: %s", err.Error()))
+	}
+
+	return ServiceKey{
+		PrivateKey: privateKey,
+		SigAlgo:    sigAlgo,
+		HashAlgo:   hashAlgo,
+	}
+}
+
+func (s ServiceKey) Signer() (sdkcrypto.Signer, error) {
+	return sdkcrypto.NewInMemorySigner(s.PrivateKey, s.HashAlgo)
+}
+
+func (s ServiceKey) AccountKey() *flowgosdk.AccountKey {
+
+	var publicKey sdkcrypto.PublicKey
+	if s.PublicKey != nil {
+		publicKey = s.PublicKey
+	}
+
+	if s.PrivateKey != nil {
+		publicKey = s.PrivateKey.PublicKey()
+	}
+
+	return &flowgosdk.AccountKey{
+		Index:          s.Index,
+		PublicKey:      publicKey,
+		SigAlgo:        s.SigAlgo,
+		HashAlgo:       s.HashAlgo,
+		Weight:         s.Weight,
+		SequenceNumber: s.SequenceNumber,
+	}
+}
 
 type CoverageReportCapable interface {
 	CoverageReport() *runtime.CoverageReport
@@ -63,7 +129,6 @@ type AccessProvider interface {
 
 	GetTransaction(txID flowgo.Identifier) (*flowgo.TransactionBody, error)
 	GetTransactionResult(txID flowgo.Identifier) (*access.TransactionResult, error)
-	GetTransactionResultByIndex(blockID flowgo.Identifier, index uint32) (*access.TransactionResult, error)
 	GetTransactionsByBlockID(blockID flowgo.Identifier) ([]*flowgo.TransactionBody, error)
 	GetTransactionResultsByBlockID(blockID flowgo.Identifier) ([]*access.TransactionResult, error)
 
