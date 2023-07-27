@@ -43,6 +43,8 @@ const (
 	LedgerStoreName            = "ledger"
 )
 
+const InMemory = ":memory:"
+
 // Store defines the storage layer for persistent chain state.
 //
 // This includes finalized blocks and transactions, and the resultant register
@@ -101,6 +103,8 @@ type Store interface {
 
 	// EventsByHeight returns the events in the block at the given height, optionally filtered by type.
 	EventsByHeight(ctx context.Context, blockHeight uint64, eventType string) ([]flowgo.Event, error)
+
+	SetBlockHeight(height uint64) error
 }
 
 type SnapshotProvider interface {

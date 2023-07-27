@@ -74,6 +74,11 @@ func (s *Store) Start() error {
 func (s *Store) Stop() {
 }
 
+func (s *Store) SetBlockHeight(height uint64) error {
+	//mem-store does not support SetBlockHeight
+	return nil
+}
+
 func (s *Store) LatestBlockHeight(ctx context.Context) (uint64, error) {
 	b, err := s.LatestBlock(ctx)
 	if err != nil {

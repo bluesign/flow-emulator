@@ -40,7 +40,7 @@ type RestServer struct {
 	logger   *zerolog.Logger
 	host     string
 	port     int
-	server   *http.Server
+	Server   *http.Server
 	listener net.Listener
 }
 
@@ -64,7 +64,7 @@ func (r *RestServer) Start() error {
 		Int("port", r.port).
 		Msgf("✅  Started REST API server on port %d", r.port)
 
-	err := r.server.Serve(r.listener)
+	err := r.Server.Serve(r.listener)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (r *RestServer) Start() error {
 }
 
 func (r *RestServer) Stop() {
-	_ = r.server.Shutdown(context.Background())
+	_ = r.Server.Shutdown(context.Background())
 }
 
 func NewRestServer(logger *zerolog.Logger, adapter *adapters.AccessAdapter, chain flow.Chain, host string, port int, debug bool) (*RestServer, error) {
@@ -98,6 +98,6 @@ func NewRestServer(logger *zerolog.Logger, adapter *adapters.AccessAdapter, chai
 		logger: logger,
 		host:   host,
 		port:   port,
-		server: srv,
+		Server: srv,
 	}, nil
 }

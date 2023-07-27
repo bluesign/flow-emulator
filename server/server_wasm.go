@@ -1,5 +1,5 @@
-//go:build !wasm
-// +build !wasm
+//go:build wasm
+// +build wasm
 
 /*
  * Flow Emulator
@@ -246,49 +246,20 @@ func (s *EmulatorServer) Listen() error {
 //
 // This is a blocking call that listens and starts the emulator server.
 func (s *EmulatorServer) Start() {
-	s.Stop()
 
-	s.group = graceland.NewGroup()
-	// only start blocks ticker if it exists
-	if s.blocks != nil {
-		s.group.Add(s.blocks)
-	}
-	s.group.Add(s.liveness)
+	//s.logger.AddHook(&WasmLogHook{})
+	Serve(s.rest.Server.Handler)
 
-	s.logger.Info().
-		Int("port", s.config.GRPCPort).
-		Msgf("🌱 Starting gRPC server on port %d", s.config.GRPCPort)
-	s.group.Add(s.grpc)
+	err := s.storage.Start()
 
-	s.logger.Info().
-		Int("port", s.config.RESTPort).
-		Msgf("🌱 Starting REST API on port %d", s.config.RESTPort)
-	s.group.Add(s.rest)
-
-	s.logger.Info().
-		Int("port", s.config.AdminPort).
-		Msgf("🌱 Starting admin server on port %d", s.config.AdminPort)
-	s.group.Add(s.admin)
-
-	s.logger.Info().
-		Int("port", s.config.DebuggerPort).
-		Msgf("🌱 Starting debugger on port %d", s.config.DebuggerPort)
-	s.group.Add(s.debugger)
-
-	// only start blocks ticker if it exists
-	if s.blocks != nil {
-		s.group.Add(s.blocks)
-	}
-
-	// routines are shut down in insertion order, so database is added last
-	s.group.Add(s.storage)
-
-	err := s.group.Start()
 	if err != nil {
-		s.logger.Error().Err(err).Msg("❗  Server error")
+		panic("❗  Server error")
 	}
 
-	s.Stop()
+	for {
+		time.Sleep(time.Second)
+	}
+
 }
 func (s *EmulatorServer) Emulator() emulator.Emulator {
 	return s.emulator
